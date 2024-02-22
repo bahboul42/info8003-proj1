@@ -1,5 +1,6 @@
 import numpy as np
 from section1 import Domain
+from functools import lru_cache
 
 class agent:
     def __init__(self):
@@ -26,6 +27,7 @@ if __name__ == "__main__":
     agent = agent()
 
     # J function for the deterministic domain
+    @lru_cache(maxsize=None)
     def det_j_func(domain, state, agent, N):
         if N == 0:
             return 0
@@ -35,6 +37,7 @@ if __name__ == "__main__":
             return j
         
     # J function for the stochastic domain
+    @lru_cache(maxsize=None)
     def sto_j_func(domain, state, agent, N):
         if N == 0:
             return 0
@@ -50,7 +53,7 @@ if __name__ == "__main__":
     for i in range(n):
         for j in range(m):
             s = (i,j)
-            print(f"({i},{j}); {det_j_func(domain, s, agent, 100)}")
+            print(f"({i},{j}); {det_j_func(domain, s, agent, 150)}")
 
     # Estimate J for our random policy in stochastic domain:
     print('Stochastic domain')
@@ -58,5 +61,4 @@ if __name__ == "__main__":
     for i in range(n):
         for j in range(m):
             s = (i,j)
-            print(f"({i},{j}); {sto_j_func(domain, s, agent, 10)}")
-
+            print(f"({i},{j}); {sto_j_func(domain, s, agent, 150)}")
