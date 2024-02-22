@@ -19,6 +19,10 @@ class Domain:
     def get_current_state(self):
         """Return the current state."""
         return self.current_x, self.current_y
+    
+    def set_state(self, state):
+        """Set the current state."""
+        self.current_x, self.current_y = state
 
     def det_reward(self, state, action):
         """Return the reward for a given state."""
@@ -40,15 +44,16 @@ class Domain:
         last_state = self.get_current_state()
         self.current_x = new_state[0]
         self.current_y = new_state[1]
-        return last_state, action,  self.sto_reward(last_state, action), new_state
+        return last_state, action,  self.det_reward(last_state, action), new_state
     
     def sto_step(self, action):
         """Stochastic step."""
-        new_state = self.sto_dyn(self.get_current_state(), action)
         last_state = self.get_current_state()
+        obtained_reward = self.sto_reward(last_state, action)
+        new_state = self.sto_dyn(self.get_current_state(), action)
         self.current_x = new_state[0]
         self.current_y = new_state[1]
-        return last_state, action,  self.sto_reward(last_state, action), new_state
+        return last_state, action,  obtained_reward, new_state
 
     def dynamic(self, state, action):
         """Compute the next state given current state and action."""
@@ -99,6 +104,9 @@ if __name__ == "__main__":
         current_action = policy(current_state)
         print(domain.det_step(current_action))
 
+    # Restart at the initial state
+    domain.set_state((3, 0))
+    
     # # Stochastic steps
     print("Stochastic steps")
     print("s_t,  a_t,  r_t,  s_(t+1)")
