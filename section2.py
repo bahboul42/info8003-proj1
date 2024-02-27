@@ -10,6 +10,10 @@ class agent:
         """Returns an action given a state"""
         return self.actions[np.random.choice(len(domain.actions))]
     
+    def left(self):
+        """Returns the action left"""
+        return (-1, 0)
+    
 if __name__ == "__main__":
     n, m = 5, 5  # Grid size
     g = np.array([[-3,   1,  -5, 0,  19],
@@ -32,7 +36,7 @@ if __name__ == "__main__":
         if N == 0:
             return 0
         else:
-            a = agent.chose_action(state)
+            a = agent.left()
             j = domain.det_reward(state, a) + domain.discount * det_j_func(domain, domain.dynamic(state, a), agent, N-1)
             return j
         
@@ -42,7 +46,7 @@ if __name__ == "__main__":
         if N == 0:
             return 0
         else:
-            a = agent.chose_action(state)
+            a = agent.left()
             j = 0.5*(domain.det_reward(state, a) + domain.discount * sto_j_func(domain, domain.dynamic(state, a), agent, N-1))
             j += 0.5*(domain.g[0, 0] + domain.discount * sto_j_func(domain, (0, 0), agent, N-1))
             return j
@@ -53,7 +57,7 @@ if __name__ == "__main__":
     for i in range(n):
         for j in range(m):
             s = (i,j)
-            print(f"({i},{j}); {det_j_func(domain, s, agent, 150)}")
+            print(f"({i},{j}); {det_j_func(domain, s, agent, 300)}")
 
     # Estimate J for our random policy in stochastic domain:
     print('Stochastic domain')
