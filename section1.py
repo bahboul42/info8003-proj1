@@ -14,7 +14,7 @@ class Domain:
         np.random.seed(random_state)
         self.w = np.random.rand()
 
-        self.actions = [(1, 0), (-1, 0), (0, 1), (0, -1)]  # Right, Left, Down, Up
+        self.actions = [(1, 0), (-1, 0), (0, 1), (0, -1)]  # Down, Up, Right, Left
 
     def get_current_state(self):
         """Return the current state."""
