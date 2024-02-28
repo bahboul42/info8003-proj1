@@ -71,10 +71,6 @@ The source code is organized into Python files corresponding to each section of 
 
 Under the supervision of Prof. Damien Ernst, and assistants Arthur Louette and Bardhyl Miftari.
 
-### License
-
-This project is open-source and available for educational purposes.
-
 ### Contact
 
 For any inquiries related to this project, please contact the contributors via GitHub.
