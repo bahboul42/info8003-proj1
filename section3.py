@@ -4,32 +4,31 @@ import numpy as np
 from itertools import product
 
 
-
 def det_proba(domain):
     probas = np.zeros((domain.g.size, domain.g.size, len(domain.actions)))
 
-    for s_prime, s, a in product(range(domain.g.size), range(domain.g.size), range(len(domain.actions))):
+    for s, a in product(range(domain.g.size), range(len(domain.actions))):
         action = domain.actions[a]
         state = (s // domain.n, s % domain.n)
         state_prime = domain.dynamic(state, action)
-
-        if s_prime == state_prime[0] * domain.n + state_prime[1]:
-            probas[s_prime, s, a] = 1
+        s_prime = state_prime[0] * domain.n + state_prime[1]
+        
+        probas[s_prime, s, a] = 1
     return probas
 
 def sto_proba(domain):
     probas = np.zeros((domain.g.size, domain.g.size, len(domain.actions)))
 
-    for s_prime, s, a in product(range(domain.g.size), range(domain.g.size), range(len(domain.actions))):
-        if s_prime == 0:
-            probas[s_prime, s, a] += 0.5
-        
+    for s, a in product(range(domain.g.size), range(len(domain.actions))):
+        probas[0, s, a] = 0.5
+
         action = domain.actions[a]
         state = (s // domain.n, s % domain.n)
         state_prime = domain.dynamic(state, action)
+        s_prime = state_prime[0] * domain.n + state_prime[1]
 
-        if s_prime == state_prime[0] * domain.n + state_prime[1]:
-            probas[s_prime, s, a] += 0.5
+        probas[s_prime, s, a] += 0.5
+
     return probas
 
 if __name__ == "__main__":
@@ -45,6 +44,14 @@ if __name__ == "__main__":
 
     # Initialize the domain
     domain = Domain(n, m, g, s0, random_state=42)
+
+    det_probas = det_proba(domain)
+    sto_probas = sto_proba(domain)
+
+
+    for s, a in product(range(domain.g.size), range(len(domain.actions))):
+       print(np.sum(det_probas[:,s,a])) # just checking they're all 1
+       print(np.sum(sto_probas[:,s,a]))
 
 
 
