@@ -105,7 +105,6 @@ if __name__ == "__main__":
                   [ 6,  -9,   4, 19, -5],
                   [-20, -17, -4, -3,  9],])
 
-    print(g[0, 0], g[0,1])
     s0 = (3, 0)  # Initial state
 
     # Initialize the domain
@@ -115,41 +114,38 @@ if __name__ == "__main__":
     mdp = MDP(domain)
 
     # Finding the deterministic policy such that it doesn't change from one iteration to another
-    n = 0
     det_current_policy = mdp.det_policy(0)
-    while True:
-        n += 1
+    det_n_min = 0
+    for n in range(1000):
         det_old_policy = det_current_policy
         det_current_policy = mdp.det_policy(n)
 
-        if det_current_policy == det_old_policy:
-            break
-
+        if det_current_policy != det_old_policy:
+            det_n_min = n
 
     # action to string dictionary
     action_to_str = {(0, 1): 'right', (0, -1): 'left', (1, 0): 'down', (-1, 0): 'up'}
 
     # print(n, det_current_policy)
     det_policy = [domain.actions[i] for i in det_current_policy]
-    print("Deterministic policy")
+    print("Deterministic policy; lowest N: ", det_n_min)
     for i, j in product(range(domain.n), range(domain.m)):
         s = (i,j)
         print("state ", s, "action: ", action_to_str[det_policy[i * domain.n + j]])
 
     # Finding the stochastic policy such that it doesn't change from one iteration to another
-    n = 0
     sto_current_policy = mdp.sto_policy(0)
-    while True:
-        n += 1
+    sto_n_min = 0
+    for n in range(1000):
         sto_old_policy = sto_current_policy
         sto_current_policy = mdp.sto_policy(n)
 
-        if sto_current_policy == sto_old_policy:
-            break
+        if sto_current_policy != sto_old_policy:
+            sto_n_min = n
 
     # print(n, sto_current_policy)
     sto_policy = [domain.actions[i] for i in sto_current_policy]
-    print("Stochastic policy")
+    print("Stochastic policy; lowest N: ", sto_n_min)
     for i, j in product(range(domain.n), range(domain.m)):
         s = (i,j)
         print("state ", s, "action: ", action_to_str[sto_policy[i * domain.n + j]])
@@ -162,6 +158,7 @@ if __name__ == "__main__":
         else:
             j = 0
             state_index = state[0] * domain.n + state[1]
+            print(state[0], state[1], state_index)
             action = policy[state_index]
             j = domain.det_reward(state, action) + domain.discount * det_j_func(domain, domain.dynamic(state, action), policy, N-1)
             return j
@@ -185,16 +182,16 @@ if __name__ == "__main__":
     # Estimate J for our random policy in deterministic domain:
     print('Deterministic domain')
     print("s; J_(mu*)(s)")
-    for i in range(n):
-        for j in range(m):
+    for i in range(domain.n):
+        for j in range(domain.m):
             s = (i,j)
             print(f"({i},{j}); {det_j_func(domain, s, tuple(det_policy), N)}")
 
     # Estimate J for our random policy in stochastic domain:
     print('Stochastic domain')
     print("s; J_(mu*)(s)")
-    for i in range(n):
-        for j in range(m):
+    for i in range(domain.n):
+        for j in range(domain.m):
             s = (i,j)
             print(f"({i},{j}); {sto_j_func(domain, s, tuple(sto_policy), N)}")
 
