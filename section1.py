@@ -100,7 +100,7 @@ if __name__ == "__main__":
     print("Deterministic trajectory")
     print("s_t,  a_t,  r_t,  s_(t+1)")
     current_state = s0
-    for i in range(10):
+    for i in range(11):
         current_action = policy(current_state)
         print(domain.det_step(current_action))
 
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     print("Stochastic trajectory")
     print("s_t,  a_t,  r_t,  s_(t+1)")
     current_state = s0
-    for i in range(10):
+    for i in range(11):
         current_action = policy(current_state)
         print(domain.sto_step(current_action))
     
