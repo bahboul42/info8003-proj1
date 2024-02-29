@@ -8,6 +8,7 @@ import sys
 class MDP:
     def __init__(self, domain):
         self.domain = domain
+        self.allowed_sa = [(s, a) for s in product(range(self.domain.n), range(self.domain.m)) for a in self.domain.actions]
 
     def det_proba(self, s_prime, s, a):
         if self.domain.dynamic(s, a) == s_prime:
@@ -26,6 +27,30 @@ class MDP:
     
     def sto_rew(self, s, a):
         return (0.5 * self.domain.g[0, 0]) + 0.5 * self.det_rew(s,a)
+    
+    def get_true_r(self, type='det'):
+        r = {}
+        if type == 'det':
+            for (s, a) in self.allowed_sa:
+                r[(s, a)] = self.det_rew(s, a)   
+        else:
+            for (s, a) in self.allowed_sa:
+                r[(s, a)] = self.sto_rew(s, a)
+        return r
+    
+    def get_true_p(self, type='det'):
+        p = {}
+        if type == 'det':
+            for (s, a) in self.allowed_sa:
+                p[(s, a)] = {}
+                for s_prime in product(range(self.domain.n), range(self.domain.m)):
+                    p[(s, a)][s_prime] = self.det_proba(s_prime, s, a)
+        else:
+            for (s, a) in self.allowed_sa:
+                p[(s, a)] = {}
+                for s_prime in product(range(self.domain.n), range(self.domain.m)):
+                    p[(s, a)][s_prime] = self.sto_proba(s_prime, s, a)
+        return p
     
     @lru_cache(maxsize=None)
     def det_Q_N(self, s, a, N):
