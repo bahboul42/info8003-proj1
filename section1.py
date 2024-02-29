@@ -97,7 +97,7 @@ if __name__ == "__main__":
         return domain.actions[np.random.choice(len(domain.actions))]
     
     # # Deterministic steps
-    print("Deterministic steps")
+    print("Deterministic trajectory")
     print("s_t,  a_t,  r_t,  s_(t+1)")
     current_state = s0
     for i in range(10):
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     domain.set_state((3, 0))
     
     # # Stochastic steps
-    print("Stochastic steps")
+    print("Stochastic trajectory")
     print("s_t,  a_t,  r_t,  s_(t+1)")
     current_state = s0
     for i in range(10):
