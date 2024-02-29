@@ -11,24 +11,27 @@ import sys
 
 class MDPEstimator:
     def __init__(self, domain, initial_sequence=[]):
-        self.domain = domain
-        self.r_hat = {}
-        self.p_hat = {}
-        self.allowed_sa = [(s, a) for s in product(range(self.domain.n), range(self.domain.m)) for a in self.domain.actions]
+        self.domain = domain 
+        self.r_hat = {} # Estimated reward dictionary
+        self.p_hat = {} # Estimated transition probability dictionary
+        self.allowed_sa = [(s, a) for s in product(range(self.domain.n), range(self.domain.m)) for a in self.domain.actions] # Allowed state-action pairs
         self.compute_r_hat(initial_sequence)
         self.compute_p_hat(initial_sequence)        
 
     
     def compute_r_hat(self, sequence):
+        """Compute the estimated reward for each state-action pair."""
         reward_sums = {}
         counts = {}
         
+        # iterate through the sequence and update the reward sums and counts
         for s, a, r in sequence:
             key = (s, a) 
             
             if key not in self.allowed_sa:
                 raise ValueError(f"Invalid state-action pair: {key}")
             
+            # Update the reward sum and count for each s-a pair
             if key in reward_sums:
                 reward_sums[key] += r
                 counts[key] += 1
@@ -40,14 +43,16 @@ class MDPEstimator:
         self.r_hat = {key: reward_sums[key] / counts[key] for key in reward_sums}
         
     def get_rew(self, s, a):
+        # Extract the reward from the dict for a given state-action pair
         if (s, a) not in self.r_hat:
             return 0
-        return self.r_hat[(s, a)]
+        return self.r_hat.get((s, a), 0)
 
 
     def compute_p_hat(self, sequence):
+        """Compute the estimated transition probabilities for each state-action pair."""
         trans = []
-        for i in range(len(sequence)-1):  # do not expect last state to not segfault
+        for i in range(len(sequence)-1):  # do not explore last state to not segfault
             current_seq = sequence[i]
             next_seq = sequence[i+1]  
             s = current_seq[0]  # Current state
@@ -63,6 +68,8 @@ class MDPEstimator:
 
         transitions = {}  # For counting transitions
         counts = {}  # For counting occurrences of state-action pairs
+
+        # Iterate through the sequence and update the transitions and counts
         for s, a, s_prime in trans:
             if (s, a) not in transitions:
                 transitions[(s, a)] = {}
@@ -73,6 +80,7 @@ class MDPEstimator:
             counts[(s, a)] += 1
 
         p_hat = {}
+        # Calculate the transition probabilities for each state-action pair
         for state_action, next_states in transitions.items():
             p_hat[state_action] = {}
             for s_prime, count in next_states.items():
@@ -81,11 +89,10 @@ class MDPEstimator:
         self.p_hat = p_hat
 
     def get_proba(self, s_prime, s, a):
-        if s_prime not in self.p_hat[(s, a)]:
-            return 0
-        return self.p_hat[(s, a)][s_prime]
+        """Return the estimated probability of transitioning to state s_prime from state s under action a."""
+        return self.p_hat.get((s, a), {}).get(s_prime, 0) # Return 0 if the probability is not found
 
-    
+
     @lru_cache(maxsize=None)
     def Q_N(self, s, a, N):
         if N == 0:
@@ -103,68 +110,41 @@ class MDPEstimator:
     def get_policy(self, N):
         mu_N = [np.argmax(np.array([self.Q_N(s, a, N) for a in self.domain.actions])) for s in product(range(self.domain.n), range(self.domain.m))]
         return mu_N
-
-
-    def print_policy(self, policy, title='Policy'):
-        X, Y = np.meshgrid(np.arange(0.5, 5, 1), np.arange(0.5, 5, 1))
-        U = np.zeros_like(X, dtype=float)
-        V = np.zeros_like(Y, dtype=float)
-
-        # Setting up the arrows based on the policy
-        for i in range(5):
-            for j in range(5):
-                action = policy[i * 5 + j]
-                U[4 - i, j] = action[1]  # dx
-                V[4 - i, j] = -action[0]  # dy   
-
-
-        plt.figure(figsize=(10, 10))
-        plt.quiver(X, Y, U, V, angles='xy', scale_units='xy', scale=3, width=0.003, pivot='mid')
-        plt.xlim(0, 5)
-        plt.ylim(0, 5)
-        plt.gca().set_aspect('equal', adjustable='box')
-        plt.xticks(range(self.domain.m))
-        plt.yticks(range(self.domain.n))
-        plt.grid()
-
-        # Adding the rewards text
-        for i in range(5):
-            for j in range(5):
-                plt.text(j + 0.7, 5 - i - 0.7, self.domain.g[i, j], ha='center', va='top', color='red')
-
-        plt.title(title)
-        plt.show()
     
-    def _rand_policy(self): return domain.actions[np.random.choice(len(domain.actions))]
+    def _rand_policy(self): return domain.actions[np.random.choice(len(domain.actions))] # Random policy as asked in the assignment
 
     def get_sequence(self, sequence_len, s0, type="det"):
-    # Generate a sequence of states, actions, and rewards for Deterministic domain
+        """Generate a sequence of states, actions, and rewards for Deterministic domain"""
         sequence = []
 
         curr_state = s0
+        # Generate a sequence of states, actions, and rewards for the given sequence length
         for _ in range(sequence_len):
             state = curr_state
-            action = self._rand_policy()
+            action = self._rand_policy() # get random action
             if type == "det":
-                next_state = domain.det_dyn(state, action)
-                reward = domain.det_reward(state, action)
+                next_state = domain.det_dyn(state, action) # get next state from action and current state
+                reward = domain.det_reward(state, action) # get reward from action and current state
             else:
-                next_state = domain.sto_dyn(state, action)
-                reward = domain.sto_reward(state, action)
-            sequence.append((state, action, reward))    
-            curr_state = next_state
+                next_state = domain.sto_dyn(state, action) # get next state from action and current state
+                reward = domain.sto_reward(state, action) # get reward from action and current state
+            sequence.append((state, action, reward)) # append to sequence
+            curr_state = next_state # update current state to next state
         return sequence
 
     def compute_inf_norm(self, pred, true, type="r"):
+        """Compute the infinity norm of the difference between the true and estimated parameters."""
         max_diff = 0
-        if type == "r":
+
+        # Fetch the true and estimated parameters and compute the difference, only keep the maximum difference
+        if type == "r" or type == "q":
             for key in self.allowed_sa:
                 true_r = true.get(key, 0)
                 estimated_r = pred.get(key, 0)
                 diff = np.abs(true_r - estimated_r)
                 if diff > max_diff:
                     max_diff = diff
-        else:
+        elif type == "p":
             for key in self.allowed_sa:
                 for s_prime in product(range(self.domain.n), range(self.domain.m)):
                     true_p = (true.get(key, {})).get(s_prime, 0)
@@ -173,13 +153,23 @@ class MDPEstimator:
                     diff = np.abs(true_p - estimated_p)
                     if diff > max_diff:
                         max_diff = diff
+        else:
+            raise ValueError(f"Invalid type: {type}")
+        
         return max_diff
 
-def plot_convergence(trajectory_lengths, inf_norm_r, inf_norm_p):
+def plot_convergence(trajectory_lengths, inf_norm, type="r", fname='foobar'):
+    """Plot the convergence of the estimated parameters to the true parameters."""
     plt.figure(figsize=(10, 6))
     
-    plt.plot(trajectory_lengths, inf_norm_r, label='Reward Convergence ($||\\hat{r} - r||_\\infty$)', marker='o')
-    plt.plot(trajectory_lengths, inf_norm_p, label='Probability Convergence ($||\\hat{p} - p||_\\infty$)', marker='x')
+    if type == "r":
+        plt.plot(trajectory_lengths, inf_norm, label='Reward Convergence ($||\\hat{r} - r||_\\infty$)', marker='o')
+    elif type == "p":
+        plt.plot(trajectory_lengths, inf_norm, label='Probability Convergence ($||\\hat{p} - p||_\\infty$)', marker='x')
+    elif type == "q":
+        plt.plot(trajectory_lengths, inf_norm, label='Q-Value Convergence ($||\\hat{q} - q||_\\infty$)', marker='s')
+    else:
+        raise ValueError(f"Invalid type: {type}")
     
     plt.title('Convergence of Estimated Parameters to True Values')
     plt.xlabel('Trajectory Length')
@@ -187,7 +177,34 @@ def plot_convergence(trajectory_lengths, inf_norm_r, inf_norm_p):
     plt.legend()
     plt.grid(True, which="both", ls="--")
     
-    plt.show()
+    plt.savefig(f'convergence_{fname}.png')
+
+# J function for the deterministic domain
+@lru_cache(maxsize=None)
+def det_j_func(domain, state, policy, N, mdp):
+    if N == 0:
+        return 0
+    else:
+        j = 0
+        state_index = state[0] * domain.n + state[1]
+        print(state[0], state[1], state_index)
+        action = policy[state_index]
+        j = mdp.get_rew(state, action) + domain.discount * det_j_func(domain, domain.dynamic(state, action), policy, N-1, mdp)
+        return j
+    
+# J function for the deterministic domain
+@lru_cache(maxsize=None)
+def sto_j_func(domain, state, policy, N, mdp):
+    if N == 0:
+        return 0
+    else:
+        j = 0
+        state_index = state[0] * domain.n + state[1]
+        action = policy[state_index]
+        j = 0.5 * (mdp.get_rew(state, action) + domain.discount * sto_j_func(domain, domain.dynamic(state, action), policy, N-1, mdp))
+        j += 0.5 * (domain.g[0, 0] + domain.discount * sto_j_func(domain, (0, 0), policy, N-1, mdp))
+        return j
+    
 
 if __name__ == "__main__":
     sys.setrecursionlimit(10**5)
@@ -208,32 +225,94 @@ if __name__ == "__main__":
     mdp_e = MDPEstimator(domain)  
     mdp = MDP(domain)
 
-    sequence_len = 1500
 
-    trajectory_lengths = np.arange(2, sequence_len, 40)
+    trajectory_lengths = np.arange(2, 41, 40)
     inf_norm_r = []
     inf_norm_p = []
+    inf_norm_q = []
+
+    inf_norm_r_sto = []
+    inf_norm_p_sto = []
+    inf_norm_q_sto = []
+
 
     # get True R and P
     true_r = mdp.get_true_r()
     true_p = mdp.get_true_p()
+    true_q = mdp.get_true_q()
 
-    for length in trajectory_lengths:
+    true_r_sto = mdp.get_true_r(type="sto")
+    true_p_sto = mdp.get_true_p(type="sto")
+    true_q_sto = mdp.get_true_q(type="sto")
+
+
+    det_policy = []
+    sto_policy = []
+
+    for i, length in enumerate(trajectory_lengths):
+        print(f'iter {i+1}/{len(trajectory_lengths)}: trajectory length = {length}')
         sequence = mdp_e.get_sequence(length, s0)
+        
         mdp_e.compute_r_hat(sequence)
         mdp_e.compute_p_hat(sequence)
         
         inf_norm_r.append(mdp_e.compute_inf_norm(mdp_e.r_hat, true_r, type="r"))
         inf_norm_p.append(mdp_e.compute_inf_norm(mdp_e.p_hat, true_p, type="p"))
+        mdp_e.Q_N.cache_clear()
+        q_hat = {}
+        for key in mdp_e.allowed_sa:
+            s, a = key
+            test = mdp_e.Q_N(s, a, 1000)
+            q_hat[key] = test
+        inf_norm_q.append(mdp_e.compute_inf_norm(q_hat, true_q, type="q"))
+        det_policy_current = [max(domain.actions, key=lambda a: q_hat[(s, a)]) for s in product(range(domain.n), range(domain.m))]
+        print(det_policy_current)
+        sequence_sto = mdp_e.get_sequence(length, s0, type="sto")
         
-        # Placeholder for Q-value computation
-        # Q_values = compute_Q_values(...) # This should be adapted to your actual implementation
-        # print("Q-values for trajectory length", length, ":", Q_values)
+        mdp_e.compute_r_hat(sequence_sto)
+        mdp_e.compute_p_hat(sequence_sto)
+        
+        inf_norm_r_sto.append(mdp_e.compute_inf_norm(mdp_e.r_hat, true_r_sto, type="r"))
+        inf_norm_p_sto.append(mdp_e.compute_inf_norm(mdp_e.p_hat, true_p_sto, type="p"))
+        mdp_e.Q_N.cache_clear()
+        q_hat_sto = {}
+        for key in mdp_e.allowed_sa:
+            s, a = key
+            test = mdp_e.Q_N(s, a, 1000)
+            q_hat_sto[key] = test
+        inf_norm_q_sto.append(mdp_e.compute_inf_norm(q_hat_sto, true_q_sto, type="q"))
+        sto_policy_current = [max(domain.actions, key=lambda a: q_hat_sto[(s, a)]) for s in product(range(domain.n), range(domain.m))]
 
     # Visualization of convergence
-    plot_convergence(trajectory_lengths, inf_norm_r, inf_norm_p)
+    plot_convergence(trajectory_lengths, inf_norm_r, type="r", fname='r_d')
+    plot_convergence(trajectory_lengths, inf_norm_p, type="p", fname='p_d')
+    plot_convergence(trajectory_lengths, inf_norm_q, type="q", fname='q_d')
 
+    plot_convergence(trajectory_lengths, inf_norm_r_sto, type="r", fname='r_sto')
+    plot_convergence(trajectory_lengths, inf_norm_p_sto, type="p", fname='p_sto')
+    plot_convergence(trajectory_lengths, inf_norm_q_sto, type="q", fname='q_sto')
 
-    print("Estimated rewards")
-    print(mdp_e.r_hat)
+    det_policy = det_policy_current
+    sto_policy = sto_policy_current
 
+    # Value of N we use to estimate J
+    N = 10**4
+
+    # Estimate J for our random policy in deterministic domain:
+    print('Deterministic domain')
+    print("s; J_(mu*)(s)")
+    for i in range(domain.n):
+        for j in range(domain.m):
+            s = (i,j)
+            print(f"({i},{j}); {det_j_func(domain, s, tuple(det_policy), N, mdp_e)}")
+
+    # Estimate J for our random policy in stochastic domain:
+    print('Stochastic domain')
+    print("s; J_(mu*)(s)")
+    for i in range(domain.n):
+        for j in range(domain.m):
+            s = (i,j)
+            print(f"({i},{j}); {sto_j_func(domain, s, tuple(sto_policy), N, mdp_e)}")
+
+    mdp.print_policy(det_policy, title='Deterministic policy')
+    mdp.print_policy(sto_policy, title='Stochastic policy')

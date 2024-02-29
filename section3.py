@@ -53,6 +53,16 @@ class MDP:
             for (s, a) in self.allowed_sa:
                 r[(s, a)] = self.sto_rew(s, a)
         return r
+    def get_true_q(self, type='det'):
+        q = {}
+        if type == 'det':
+
+            for (s, a) in self.allowed_sa:
+                q[(s, a)] = self.det_Q_N(s, a, 1000)
+        else:
+            for (s, a) in self.allowed_sa:
+                q[(s, a)] = self.sto_Q_N(s, a, 1000)
+        return q
     
     def get_true_p(self, type='det'):
         """
