@@ -170,7 +170,7 @@ if __name__ == "__main__":
 
     # print(n, sto_current_policy)
     sto_policy = [domain.actions[i] for i in sto_current_policy]
-    print("Stochastic policy; lowest N: ", sto_n_min)
+    print("Stochastic policy; lowest N: ", sto_n_min + 1)
     for i, j in product(range(domain.n), range(domain.m)):
         s = (i,j)
         print("state ", s, "action: ", action_to_str[sto_policy[i * domain.n + j]])
@@ -183,7 +183,6 @@ if __name__ == "__main__":
         else:
             j = 0
             state_index = state[0] * domain.n + state[1]
-            print(state[0], state[1], state_index)
             action = policy[state_index]
             j = domain.det_reward(state, action) + domain.discount * det_j_func(domain, domain.dynamic(state, action), policy, N-1)
             return j
