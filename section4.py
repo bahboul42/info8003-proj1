@@ -187,7 +187,6 @@ def det_j_func(domain, state, policy, N, mdp):
     else:
         j = 0
         state_index = state[0] * domain.n + state[1]
-        print(state[0], state[1], state_index)
         action = policy[state_index]
         j = mdp.get_rew(state, action) + domain.discount * det_j_func(domain, domain.dynamic(state, action), policy, N-1, mdp)
         return j
@@ -223,10 +222,11 @@ if __name__ == "__main__":
 
     # Initialize MDP
     mdp_e = MDPEstimator(domain)  
+    mdp_e_sto = MDPEstimator(domain)
     mdp = MDP(domain)
 
 
-    trajectory_lengths = np.arange(2, 41, 40)
+    trajectory_lengths = np.arange(2, 1300, 40)
     inf_norm_r = []
     inf_norm_p = []
     inf_norm_q = []
@@ -249,62 +249,75 @@ if __name__ == "__main__":
     det_policy = []
     sto_policy = []
 
+    # from multiprocessing import ThreadPool
+
+
+    # for i, length in enumerate(trajectory_lengths):
+    #     print(f'"det" iter {i+1}/{len(trajectory_lengths)}: trajectory length = {length}')
+
+    #     ## DETERMINISTIC DOMAIN
+    #     sequence = mdp_e.get_sequence(length, s0)
+        
+    #     mdp_e.compute_r_hat(sequence)
+    #     mdp_e.compute_p_hat(sequence)
+        
+    #     inf_norm_r.append(mdp_e.compute_inf_norm(mdp_e.r_hat, true_r, type="r"))
+    #     inf_norm_p.append(mdp_e.compute_inf_norm(mdp_e.p_hat, true_p, type="p"))
+
+    #     mdp_e.Q_N.cache_clear()
+    #     q_hat = {}
+    #     for key in mdp_e.allowed_sa:
+    #         s, a = key
+    #         test = mdp_e.Q_N(s, a, 600)
+    #         q_hat[key] = test
+    #     inf_norm_q.append(mdp_e.compute_inf_norm(q_hat, true_q, type="q"))
+
+    #     det_policy_current = [max(domain.actions, key=lambda a: q_hat[(s, a)]) for s in product(range(domain.n), range(domain.m))]
+    
+    trajectory_lengths = np.arange(12000, 32041, 1000)
     for i, length in enumerate(trajectory_lengths):
-        print(f'iter {i+1}/{len(trajectory_lengths)}: trajectory length = {length}')
-        sequence = mdp_e.get_sequence(length, s0)
+        print(f'"sto" iter {i+1}/{len(trajectory_lengths)}: trajectory length = {length}')
+
+        ## STOCHASTIC DOMAIN
+        sequence_sto = mdp_e_sto.get_sequence(length, s0, type="sto")
         
-        mdp_e.compute_r_hat(sequence)
-        mdp_e.compute_p_hat(sequence)
+        mdp_e_sto.compute_r_hat(sequence_sto)
+        mdp_e_sto.compute_p_hat(sequence_sto)
         
-        inf_norm_r.append(mdp_e.compute_inf_norm(mdp_e.r_hat, true_r, type="r"))
-        inf_norm_p.append(mdp_e.compute_inf_norm(mdp_e.p_hat, true_p, type="p"))
-        mdp_e.Q_N.cache_clear()
-        q_hat = {}
-        for key in mdp_e.allowed_sa:
-            s, a = key
-            test = mdp_e.Q_N(s, a, 1000)
-            q_hat[key] = test
-        inf_norm_q.append(mdp_e.compute_inf_norm(q_hat, true_q, type="q"))
-        det_policy_current = [max(domain.actions, key=lambda a: q_hat[(s, a)]) for s in product(range(domain.n), range(domain.m))]
-        print(det_policy_current)
-        sequence_sto = mdp_e.get_sequence(length, s0, type="sto")
-        
-        mdp_e.compute_r_hat(sequence_sto)
-        mdp_e.compute_p_hat(sequence_sto)
-        
-        inf_norm_r_sto.append(mdp_e.compute_inf_norm(mdp_e.r_hat, true_r_sto, type="r"))
-        inf_norm_p_sto.append(mdp_e.compute_inf_norm(mdp_e.p_hat, true_p_sto, type="p"))
-        mdp_e.Q_N.cache_clear()
+        inf_norm_r_sto.append(mdp_e_sto.compute_inf_norm(mdp_e.r_hat, true_r_sto, type="r"))
+        inf_norm_p_sto.append(mdp_e_sto.compute_inf_norm(mdp_e.p_hat, true_p_sto, type="p"))
+
+        mdp_e_sto.Q_N.cache_clear()
         q_hat_sto = {}
         for key in mdp_e.allowed_sa:
             s, a = key
-            test = mdp_e.Q_N(s, a, 1000)
+            test = mdp_e_sto.Q_N(s, a, 600)
             q_hat_sto[key] = test
-        inf_norm_q_sto.append(mdp_e.compute_inf_norm(q_hat_sto, true_q_sto, type="q"))
+        inf_norm_q_sto.append(mdp_e_sto.compute_inf_norm(q_hat_sto, true_q_sto, type="q"))
         sto_policy_current = [max(domain.actions, key=lambda a: q_hat_sto[(s, a)]) for s in product(range(domain.n), range(domain.m))]
 
     # Visualization of convergence
-    plot_convergence(trajectory_lengths, inf_norm_r, type="r", fname='r_d')
-    plot_convergence(trajectory_lengths, inf_norm_p, type="p", fname='p_d')
-    plot_convergence(trajectory_lengths, inf_norm_q, type="q", fname='q_d')
+    # plot_convergence(trajectory_lengths, inf_norm_r, type="r", fname='r_d')
+    # plot_convergence(trajectory_lengths, inf_norm_p, type="p", fname='p_d')
+    # plot_convergence(trajectory_lengths, inf_norm_q, type="q", fname='q_d')
 
     plot_convergence(trajectory_lengths, inf_norm_r_sto, type="r", fname='r_sto')
     plot_convergence(trajectory_lengths, inf_norm_p_sto, type="p", fname='p_sto')
     plot_convergence(trajectory_lengths, inf_norm_q_sto, type="q", fname='q_sto')
 
-    det_policy = det_policy_current
+    # det_policy = det_policy_current
     sto_policy = sto_policy_current
 
     # Value of N we use to estimate J
     N = 10**4
 
     # Estimate J for our random policy in deterministic domain:
-    print('Deterministic domain')
-    print("s; J_(mu*)(s)")
-    for i in range(domain.n):
-        for j in range(domain.m):
-            s = (i,j)
-            print(f"({i},{j}); {det_j_func(domain, s, tuple(det_policy), N, mdp_e)}")
+    # print('Deterministic domain')
+    # print("s; J_(mu*)(s)")
+    # for i in range(domain.n):
+    #     for j in range(domain.m):
+    #         s = (i,j)
+    #         print(f"({i},{j}); {det_j_func(domain, s, tuple(det_policy), N, mdp_e)}")
 
     # Estimate J for our random policy in stochastic domain:
     print('Stochastic domain')
@@ -312,7 +325,7 @@ if __name__ == "__main__":
     for i in range(domain.n):
         for j in range(domain.m):
             s = (i,j)
-            print(f"({i},{j}); {sto_j_func(domain, s, tuple(sto_policy), N, mdp_e)}")
+            print(f"({i},{j}); {sto_j_func(domain, s, tuple(sto_policy), N, mdp_e_sto)}")
 
-    mdp.print_policy(det_policy, title='Deterministic policy')
+    # mdp.print_policy(det_policy, title='Deterministic policy')
     mdp.print_policy(sto_policy, title='Stochastic policy')
