@@ -43,7 +43,7 @@ class MDP:
     
     def get_true_r(self, type='det'):
         """
-        Get all rewards of one of the domains.
+        Get all rewards for one of the domains.
         """
         r = {}
         if type == 'det':
@@ -53,7 +53,11 @@ class MDP:
             for (s, a) in self.allowed_sa:
                 r[(s, a)] = self.sto_rew(s, a)
         return r
+    
     def get_true_q(self, type='det'):
+        """
+        Get all q_values for one of the domains.
+        """
         q = {}
         if type == 'det':
 
@@ -66,7 +70,7 @@ class MDP:
     
     def get_true_p(self, type='det'):
         """
-        Get all transition probabilities of one of the domains.
+        Get all transition probabilities for one of the domains.
         """
         p = {}
         if type == 'det':
@@ -182,6 +186,8 @@ if __name__ == "__main__":
     mdp = MDP(domain)
 
     # Finding the optimal policy in the deterministic setting
+    mdp.det_policy.cache_clear() # Clearing the cache
+    mdp.det_Q_N.cache_clear() # Clearing the cache
     det_current_policy = mdp.det_policy(0)
     det_n_min = 0
     for n in range(1000):
@@ -202,6 +208,8 @@ if __name__ == "__main__":
         print("state ", s, "action: ", action_to_str[det_policy[i * domain.n + j]])
 
     # Finding the optimal policy in the stochastic setting
+    mdp.det_policy.cache_clear() # Clearing the cache
+    mdp.det_Q_N.cache_clear() # Clearing the cache
     sto_current_policy = mdp.sto_policy(0)
     sto_n_min = 0
     for n in range(1000):
@@ -253,6 +261,7 @@ if __name__ == "__main__":
     # Estimate J for the optimal policy in deterministic domain:
     print('Deterministic domain')
     print("s; J_(mu*)(s)")
+    det_j_func.cache_clear() # Clearing the cache
     for i in range(domain.n):
         for j in range(domain.m):
             s = (i,j)
@@ -261,6 +270,7 @@ if __name__ == "__main__":
     # Estimate J for the optimal policy in stochastic domain:
     print('Stochastic domain')
     print("s; J_(mu*)(s)")
+    sto_j_func.cache_clear() # Clearing the cache
     for i in range(domain.n):
         for j in range(domain.m):
             s = (i,j)

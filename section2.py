@@ -62,6 +62,7 @@ if __name__ == "__main__":
     # Estimate J for the random policy in the deterministic domain
     print('Deterministic domain')
     print("s; J(s)")
+    det_j_func.cache_clear() # Clearing the cache
     for i in range(n):
         for j in range(m):
             s = (i,j)
@@ -70,6 +71,7 @@ if __name__ == "__main__":
     # Estimate J for the random policy in the stochastic domain
     print('Stochastic domain')
     print("s; J(s)")
+    sto_j_func.cache_clear() # Clearing the cache
     for i in range(n):
         for j in range(m):
             s = (i,j)
