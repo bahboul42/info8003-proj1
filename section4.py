@@ -123,11 +123,11 @@ class MDPEstimator:
             state = curr_state
             action = self._rand_policy() # get random action
             if type == "det":
-                next_state = domain.det_dyn(state, action) # get next state from action and current state
                 reward = domain.det_reward(state, action) # get reward from action and current state
+                next_state = domain.det_dyn(state, action) # get next state from action and current state
             else:
-                next_state = domain.sto_dyn(state, action) # get next state from action and current state
                 reward = domain.sto_reward(state, action) # get reward from action and current state
+                next_state = domain.sto_dyn(state, action) # get next state from action and current state
             sequence.append((state, action, reward)) # append to sequence
             curr_state = next_state # update current state to next state
         return sequence
