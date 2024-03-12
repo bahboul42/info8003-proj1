@@ -152,7 +152,8 @@ class OnlineQ:
     
     def sim_episodes(self, s0, n_transitions, n_episodes, type = "det", protocol = 1):
         differences = np.zeros(n_episodes)
-        
+        differences_l2 = np.zeros(n_episodes)
+
         # Initializing q_hat
         q_hat = {}
         for i, j, a in product(range(self.domain.n), range(self.domain.m), self.domain.actions):
@@ -167,10 +168,12 @@ class OnlineQ:
 
             if type == "det":
                 differences[ep] = np.max(np.abs(j_mu_hat - self.det_J_mu_star))
+                differences_l2[ep] = np.linalg.norm(j_mu_hat - self.det_J_mu_star)
             else:
                 differences[ep] = np.max(np.abs(j_mu_hat - self.sto_J_mu_star))
+                differences_l2[ep] = np.linalg.norm(j_mu_hat - self.sto_J_mu_star)
 
-        return differences
+        return differences, differences_l2
 
     
     # Policy given a q_function
@@ -234,7 +237,7 @@ class OnlineQ:
     def opt_policy(self, q_hat, s):
         return self.domain.actions[np.argmax(np.array([q_hat[s,a] for a in self.domain.actions]))]
 
-    def plot_convergence(self, n_episodes, inf_norm, type="det", protocol=1):
+    def plot_convergence(self, n_episodes, inf_norm, l2_norm, type="det", protocol=1, path="./5.2"):
         """Plot the convergence of the estimated parameters to the true parameters."""
         plt.figure(figsize=(10, 6))
         if type == "det":
@@ -249,7 +252,22 @@ class OnlineQ:
         plt.legend()
         plt.grid(True, which="both", ls="--")
         
-        plt.savefig(f'evolution_{domain_name}_{protocol}.png')
+        plt.savefig(path+f'/evolution_{domain_name}_{protocol}_inf.png')
+
+        plt.figure(figsize=(10, 6))
+        if type == "det":
+            domain_name = "deterministic"
+        else:
+            domain_name = "stochastic"
+        
+        plt.plot(range(1, n_episodes + 1), l2_norm, label='$||J_{N}^{\\mu_{\\hat{Q}}} - J_{N}^{\\mu^*}||_2$', marker='o')
+        plt.title(f"Convergence of State Values against number of episodes for {domain_name} domain under protocol {protocol}")
+        plt.xlabel('Number of Episodes')
+        plt.ylabel('L2 Norm of Difference')
+        plt.legend()
+        plt.grid(True, which="both", ls="--")
+        
+        plt.savefig(path+f'/evolution_{domain_name}_{protocol}_L2.png')
 
 
 if __name__ == "__main__":
@@ -281,10 +299,13 @@ if __name__ == "__main__":
         det_q_hat_n[(s,a)] = 0
 
     max_t = 100
-    traj_size = 10000
-
+    traj_size = 50000
+    t_det = max_t
     det_array = []
     for iter in range(10):
+        for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
+            s = (i,j)
+            det_q_hat_n[(s,a)] = 0
         print("Run ", iter+1, " /10 in deterministic domain")
         det_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "det") # deterministic domain
         q_diff_det = []
@@ -293,17 +314,17 @@ if __name__ == "__main__":
             old_q_hat = det_q_hat_n.copy()
             for transition in det_trajectory:
                 offlineQ.update_q_hat(det_q_hat_n, transition)
-
             c_inf = offlineQ.compute_inf_norm(det_q_hat_n, old_q_hat)
             q_diff_det.append(c_inf)
             if c_inf <= 0.1:
+                print("Converged at ", i*traj_size, " sequence length")
                 t_det = traj_size * i
                 break
             starting_state = det_trajectory[len(det_trajectory)-1][3]
             det_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "det") # deterministic domain
         det_array.append(q_diff_det)
 
-    print("Optimal horizon in deterministic domain: ", t_det)
+    print("Empirical Optimal horizon in deterministic domain: ", t_det)
 
     
     print("Results deterministic domain")
@@ -324,12 +345,13 @@ if __name__ == "__main__":
     # Stochastic domain
     # Initializing q_hat
     sto_q_hat_n = {}
-    for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
-        s = (i,j)
-        sto_q_hat_n[(s,a)] = 0
 
     sto_array = []
+    t_sto = max_t
     for iter in range(10):
+        for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
+            s = (i,j)
+            sto_q_hat_n[(s,a)] = 0
         print("Run ", iter+1, " /10 in stochastic domain")
         sto_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "sto") # stochastic domain
         q_diff_sto = []
@@ -341,13 +363,14 @@ if __name__ == "__main__":
             c_inf = offlineQ.compute_inf_norm(sto_q_hat_n, old_q_hat)
             q_diff_sto.append(c_inf)
             if c_inf <= 0.1:
-                t_sto = i
-                print("Optimal horizon in stochastic domain: ", traj_size * i)
+                print("Converged at ", i*traj_size, " sequence length")
+                t_sto = i * traj_size
                 break
             starting_state = sto_trajectory[len(sto_trajectory)-1][3]
             sto_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "sto") # stochastic domain
         sto_array.append(q_diff_sto)
 
+    print("Optimal horizon in stocha domain: ", t_sto)
 
     print("Results stochastic domain")
     for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
@@ -431,10 +454,9 @@ if __name__ == "__main__":
     plt.figure(figsize=(10, 10))
     plt.plot(time_steps, mean_data, label='Mean')
     plt.fill_between(time_steps, mean_data - std_dev_data, mean_data + std_dev_data, alpha=0.2, label='Std Dev')
-
     plt.title("Mean and Standard Deviation of Q-value Differences Over Time (Deterministic)")
     plt.xlabel("Time Step")
-    plt.ylabel("Q-value Difference")
+    plt.ylabel("Q-value Difference in Infinity Norm")
     plt.ylim(0, None)
     plt.grid()
     plt.legend()
@@ -462,7 +484,7 @@ if __name__ == "__main__":
 
     plt.title("Mean and Standard Deviation of Q-value Differences Over Time")
     plt.xlabel("Time Step")
-    plt.ylabel("Q-value Difference")
+    plt.ylabel("Q-value Difference in Infinity Norm")
     plt.ylim(0, None)
     plt.grid()
     plt.legend()
@@ -472,6 +494,44 @@ if __name__ == "__main__":
     print("Section 5.2")
     
     # Initialize MDP
+    domain.set_discount(0.99)
+    mdp = MDP(domain)
+    
+    # Initialize our class
+    alpha = 0.05
+    epsilon = 0.5
+    onlineQ = OnlineQ(domain, alpha, epsilon, mdp)
+
+    # Derive the optimal strategies
+    onlineQ.mu_star(type = "det")
+    onlineQ.mu_star(type = "sto")
+    print("Mu star derived")
+
+    # Derive J_mu_star
+    onlineQ.j_star(type = "det")
+    onlineQ.j_star(type = "sto")
+    print("J star derived")
+
+    # Deriving infinity norm differences
+    nbr_transi = 1000
+    nbr_ep = 100
+
+    all_diffs = np.empty((6, nbr_ep))
+
+    for i in range(1, 4):
+        print(f"Protocol {i}")
+        print("Deterministic")
+        det_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "det", protocol = i)
+        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i, path="./5.2")
+        print("Stochastic")
+        sto_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "sto", protocol = i)
+        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i, path="./5.2")
+
+    print("Section 5.3")
+ 
+    # Initialize MDP
+    # Set the discount factor to 0.4 as asked in section 5.3
+    domain.set_discount(0.4)
     mdp = MDP(domain)
 
     # Initialize our class
@@ -498,8 +558,8 @@ if __name__ == "__main__":
     for i in range(1, 4):
         print(f"Protocol {i}")
         print("Deterministic")
-        det_diffs = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "det", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, det_diffs, type = "det", protocol = i)
+        det_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "det", protocol = i)
+        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i, path="./5.3")
         print("Stochastic")
-        sto_diffs = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "sto", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, sto_diffs, type = "sto", protocol = i)
+        sto_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "sto", protocol = i)
+        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i, path="./5.3")

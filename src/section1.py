@@ -19,7 +19,9 @@ class Domain:
     def get_current_state(self):
         """Return the current state."""
         return self.current_x, self.current_y
-    
+    def set_discount(self, discount):
+        """Set the discount factor."""
+        self.discount = discount
     def set_state(self, state):
         """Set the current state."""
         self.current_x, self.current_y = state
