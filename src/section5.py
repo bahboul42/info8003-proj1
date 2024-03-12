@@ -36,7 +36,8 @@ class OfflineQ:
     
     def update_q_hat(self, q_hat_n, transition):
         s, a, r, s_prime = transition
-        q_hat_n[(s,a)] = (1-self.alpha_k)*q_hat_n[(s,a)] + self.alpha_k*(r + self.domain.discount*np.max(np.array([q_hat_n[(s_prime,a_prime)] for a_prime in self.domain.actions])))
+        new_trans = (1-self.alpha_k)*q_hat_n[(s,a)] + self.alpha_k*(r + self.domain.discount*np.max(np.array([q_hat_n[(s_prime,a_prime)] for a_prime in self.domain.actions])))
+        q_hat_n[(s, a)] = new_trans
 
     def opt_policy(self, q_hat):
         mu_N = {}
@@ -46,6 +47,19 @@ class OfflineQ:
             # mu_N[s] = np.argmax(np.array([q_hat[s,a] for a in self.domain.actions]))
             
         return mu_N
+    
+    def compute_inf_norm(self, pred, true):
+        """Compute the infinity norm of the difference between the true and estimated parameters."""
+        max_diff = 0
+        for i, j, a in product(range(self.domain.n), range(self.domain.m), self.domain.actions):
+            s = (i,j)
+            true_r = true.get((s,a), 0)
+            estimated_r = pred.get((s,a), 0)
+            diff = np.abs(true_r - estimated_r)
+            if diff > max_diff:
+                max_diff = diff
+        
+        return max_diff
     
     def print_policy(self, policy, title='Policy'):
         X, Y = np.meshgrid(np.arange(0.5, 5, 1), np.arange(0.5, 5, 1))
@@ -196,9 +210,13 @@ class OnlineQ:
                 transitions.append((s,a,r,s_prime))
                 for _ in range(10):
                     s_up, a_up, r_up, s_prime_up = transitions[np.random.choice(len(transitions))]
-                    q_hat[(s_up,a_up)] = (1-alpha_t)*q_hat[(s_up,a_up)] + alpha_t*(r_up + self.domain.discount*np.max(np.array([q_hat[(s_prime_up,a_prime)] for a_prime in self.domain.actions])))
+                    buffer = (1-alpha_t)*q_hat[(s_up,a_up)] + alpha_t*\
+                        (r_up + self.domain.discount*np.max(np.array([q_hat[(s_prime_up,a_prime)] for a_prime in self.domain.actions])))
+                    q_hat[(s_up,a_up)] = buffer
             else:
-                q_hat[(s,a)] = (1-alpha_t)*q_hat[(s,a)] + alpha_t*(r + self.domain.discount*np.max(np.array([q_hat[(s_prime,a_prime)] for a_prime in self.domain.actions])))
+                buffer = (1-alpha_t)*q_hat[(s,a)] + alpha_t*\
+                    (r + self.domain.discount*np.max(np.array([q_hat[(s_prime,a_prime)] for a_prime in self.domain.actions])))
+                q_hat[(s,a)]
             curr_state = s_prime # update current state to next state
             if protocol == 2:
                 alpha_t = 0.8 * alpha_t
@@ -255,10 +273,6 @@ if __name__ == "__main__":
     alpha_k = 0.05
     offlineQ = OfflineQ(domain, alpha_k)
 
-    # Generate the trajectory
-    det_trajectory = offlineQ.generate_sequence(1000000, s0, type = "det") # deterministic domain
-    sto_trajectory = offlineQ.generate_sequence(1000000, s0, type = "sto") # stochastic domain
-
     # Deterministic domain
     # Initializing q_hat
     det_q_hat_n = {}
@@ -266,8 +280,26 @@ if __name__ == "__main__":
         s = (i,j)
         det_q_hat_n[(s,a)] = 0
 
-    for transition in det_trajectory:
-        offlineQ.update_q_hat(det_q_hat_n, transition)
+    max_t = 100
+    traj_size = 10000
+    det_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "det") # deterministic domain
+    q_diff_det = []
+    t_det = max_t
+    for i in range(max_t):
+        old_q_hat = det_q_hat_n.copy()
+        for transition in det_trajectory:
+            offlineQ.update_q_hat(det_q_hat_n, transition)
+
+        c_inf = offlineQ.compute_inf_norm(det_q_hat_n, old_q_hat)
+        q_diff_det.append(c_inf)
+        if c_inf <= 0.1:
+            t_det = traj_size * i
+            break
+        starting_state = det_trajectory[len(det_trajectory)-1][3]
+        det_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "det") # deterministic domain
+    
+    print("Optimal horizon in deterministic domain: ", t_det)
+
     
     print("Results deterministic domain")
     for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
@@ -280,7 +312,7 @@ if __name__ == "__main__":
 
     det_mu_N = offlineQ.opt_policy(det_q_hat_n)
     print("Optimal policy deterministic domain")
-    for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
+    for i, j in product(range(domain.n), range(domain.m)):
         s = (i,j)
         print(s, " Action: ", action_to_str[det_mu_N[s]])
 
@@ -291,22 +323,36 @@ if __name__ == "__main__":
         s = (i,j)
         sto_q_hat_n[(s,a)] = 0
 
-    for transition in sto_trajectory:
-        offlineQ.update_q_hat(sto_q_hat_n, transition)
+    sto_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "sto") # stochastic domain
+    q_diff_sto = []
+    t_sto = max_t
+    for i in range(max_t):
+        old_q_hat = sto_q_hat_n.copy()
+        for transition in sto_trajectory:
+            offlineQ.update_q_hat(sto_q_hat_n, transition)
+        c_inf = offlineQ.compute_inf_norm(sto_q_hat_n, old_q_hat)
+        q_diff_sto.append(c_inf)
+        if c_inf <= 0.1:
+            t_sto = i
+            print("Optimal horizon in stochastic domain: ", traj_size * i)
+            break
     
+        starting_state = sto_trajectory[len(sto_trajectory)-1][3]
+        sto_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "sto") # stochastic domain
+
+
     print("Results stochastic domain")
     for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
         s = (i,j)
         if sto_q_hat_n[(s,a)] != 0:
             print(s, a, sto_q_hat_n[(s, a)])
-    
-    sto_mu_N = offlineQ.opt_policy(det_q_hat_n)
-    print("Optimal policy Stochastic domain")
-    for i, j, a in product(range(domain.n), range(domain.m), domain.actions):
+
+    sto_mu_N = offlineQ.opt_policy(sto_q_hat_n)
+    print("Optimal policy stochastic domain")
+    for i, j in product(range(domain.n), range(domain.m)):
         s = (i,j)
         print(s, " Action: ", action_to_str[sto_mu_N[s]])
 
-    
     det_policy = [det_mu_N[(i,j)] for i, j in product(range(domain.n), range(domain.m))]
     sto_policy = [sto_mu_N[(i,j)] for i, j in product(range(domain.n), range(domain.m))]
     
@@ -357,7 +403,16 @@ if __name__ == "__main__":
     
     offlineQ.print_policy(det_mu_N, title='Deterministic policy')
     offlineQ.print_policy(sto_mu_N, title='Stochastic policy')
+    
+    plt.figure(figsize=(10, 10))
+    plt.plot(range(t_det), q_diff_det)
+    plt.grid()
+    plt.show()
 
+    plt.figure(figsize=(10, 10))
+    plt.plot(range(t_sto), q_diff_sto)
+    plt.grid()
+    plt.show()
     print("Section 5.2")
     
     # Initialize MDP
