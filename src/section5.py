@@ -282,22 +282,27 @@ if __name__ == "__main__":
 
     max_t = 100
     traj_size = 10000
-    det_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "det") # deterministic domain
-    q_diff_det = []
-    t_det = max_t
-    for i in range(max_t):
-        old_q_hat = det_q_hat_n.copy()
-        for transition in det_trajectory:
-            offlineQ.update_q_hat(det_q_hat_n, transition)
 
-        c_inf = offlineQ.compute_inf_norm(det_q_hat_n, old_q_hat)
-        q_diff_det.append(c_inf)
-        if c_inf <= 0.1:
-            t_det = traj_size * i
-            break
-        starting_state = det_trajectory[len(det_trajectory)-1][3]
-        det_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "det") # deterministic domain
-    
+    det_array = []
+    for iter in range(10):
+        print("Run ", iter+1, " /10 in deterministic domain")
+        det_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "det") # deterministic domain
+        q_diff_det = []
+        t_det = max_t
+        for i in range(max_t):
+            old_q_hat = det_q_hat_n.copy()
+            for transition in det_trajectory:
+                offlineQ.update_q_hat(det_q_hat_n, transition)
+
+            c_inf = offlineQ.compute_inf_norm(det_q_hat_n, old_q_hat)
+            q_diff_det.append(c_inf)
+            if c_inf <= 0.1:
+                t_det = traj_size * i
+                break
+            starting_state = det_trajectory[len(det_trajectory)-1][3]
+            det_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "det") # deterministic domain
+        det_array.append(q_diff_det)
+
     print("Optimal horizon in deterministic domain: ", t_det)
 
     
@@ -323,22 +328,25 @@ if __name__ == "__main__":
         s = (i,j)
         sto_q_hat_n[(s,a)] = 0
 
-    sto_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "sto") # stochastic domain
-    q_diff_sto = []
-    t_sto = max_t
-    for i in range(max_t):
-        old_q_hat = sto_q_hat_n.copy()
-        for transition in sto_trajectory:
-            offlineQ.update_q_hat(sto_q_hat_n, transition)
-        c_inf = offlineQ.compute_inf_norm(sto_q_hat_n, old_q_hat)
-        q_diff_sto.append(c_inf)
-        if c_inf <= 0.1:
-            t_sto = i
-            print("Optimal horizon in stochastic domain: ", traj_size * i)
-            break
-    
-        starting_state = sto_trajectory[len(sto_trajectory)-1][3]
-        sto_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "sto") # stochastic domain
+    sto_array = []
+    for iter in range(10):
+        print("Run ", iter+1, " /10 in stochastic domain")
+        sto_trajectory = offlineQ.generate_sequence(traj_size, s0, type = "sto") # stochastic domain
+        q_diff_sto = []
+        t_sto = max_t
+        for i in range(max_t):
+            old_q_hat = sto_q_hat_n.copy()
+            for transition in sto_trajectory:
+                offlineQ.update_q_hat(sto_q_hat_n, transition)
+            c_inf = offlineQ.compute_inf_norm(sto_q_hat_n, old_q_hat)
+            q_diff_sto.append(c_inf)
+            if c_inf <= 0.1:
+                t_sto = i
+                print("Optimal horizon in stochastic domain: ", traj_size * i)
+                break
+            starting_state = sto_trajectory[len(sto_trajectory)-1][3]
+            sto_trajectory = offlineQ.generate_sequence(traj_size, starting_state, type = "sto") # stochastic domain
+        sto_array.append(q_diff_sto)
 
 
     print("Results stochastic domain")
@@ -404,15 +412,63 @@ if __name__ == "__main__":
     offlineQ.print_policy(det_mu_N, title='Deterministic policy')
     offlineQ.print_policy(sto_mu_N, title='Stochastic policy')
     
+    max_length = max(len(lst) for lst in det_array)
+    for lst in det_array:
+        last_value = lst[-1]
+        lst.extend([last_value] * (max_length - len(lst)))
+
+    # Convert the list of lists into a 2D numpy array for easier calculations
+    data = np.array(det_array)
+
+    # Calculate the mean and standard deviation along the vertical axis (for each time step across all runs)
+    mean_data = np.mean(data, axis=0)
+    std_dev_data = np.std(data, axis=0)
+
+    # Create the time steps for plotting
+    time_steps = np.arange(max_length)
+
+    # Plotting the mean with the standard deviation as a hull
     plt.figure(figsize=(10, 10))
-    plt.plot(range(t_det), q_diff_det)
+    plt.plot(time_steps, mean_data, label='Mean')
+    plt.fill_between(time_steps, mean_data - std_dev_data, mean_data + std_dev_data, alpha=0.2, label='Std Dev')
+
+    plt.title("Mean and Standard Deviation of Q-value Differences Over Time (Deterministic)")
+    plt.xlabel("Time Step")
+    plt.ylabel("Q-value Difference")
+    plt.ylim(0, None)
     plt.grid()
+    plt.legend()
     plt.show()
 
+    max_length = max(len(lst) for lst in sto_array)
+    for lst in sto_array:
+        last_value = lst[-1]
+        lst.extend([last_value] * (max_length - len(lst)))
+
+    # Convert the list of lists into a 2D numpy array for easier calculations
+    data = np.array(sto_array)
+
+    # Calculate the mean and standard deviation along the vertical axis (for each time step across all runs)
+    mean_data = np.mean(data, axis=0)
+    std_dev_data = np.std(data, axis=0)
+
+    # Create the time steps for plotting
+    time_steps = np.arange(max_length)
+
+    # Plotting the mean with the standard deviation as a hull
     plt.figure(figsize=(10, 10))
-    plt.plot(range(t_sto), q_diff_sto)
+    plt.plot(time_steps, mean_data, label='Mean')
+    plt.fill_between(time_steps, mean_data - std_dev_data, mean_data + std_dev_data, alpha=0.2, label='Std Dev')
+
+    plt.title("Mean and Standard Deviation of Q-value Differences Over Time")
+    plt.xlabel("Time Step")
+    plt.ylabel("Q-value Difference")
+    plt.ylim(0, None)
     plt.grid()
+    plt.legend()
     plt.show()
+
+
     print("Section 5.2")
     
     # Initialize MDP
