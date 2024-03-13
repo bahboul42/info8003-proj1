@@ -237,7 +237,7 @@ class OnlineQ:
     def opt_policy(self, q_hat, s):
         return self.domain.actions[np.argmax(np.array([q_hat[s,a] for a in self.domain.actions]))]
 
-    def plot_convergence(self, n_episodes, inf_norm, l2_norm, type="det", protocol=1, path="./5.2"):
+    def plot_convergence(self, n_episodes, inf_norm, l2_norm, type="det", protocol=1, path="."):
         """Plot the convergence of the estimated parameters to the true parameters."""
         plt.figure(figsize=(10, 6))
         if type == "det":
@@ -268,6 +268,7 @@ class OnlineQ:
         plt.grid(True, which="both", ls="--")
         
         plt.savefig(path+f'/evolution_{domain_name}_{protocol}_L2.png')
+    
 
 
 if __name__ == "__main__":
@@ -522,10 +523,10 @@ if __name__ == "__main__":
         print(f"Protocol {i}")
         print("Deterministic")
         det_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "det", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i, path="./5.2")
+        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i)
         print("Stochastic")
         sto_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "sto", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i, path="./5.2")
+        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i)
 
     print("Section 5.3")
  
