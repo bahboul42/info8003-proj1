@@ -219,7 +219,7 @@ class OnlineQ:
             else:
                 buffer = (1-alpha_t)*q_hat[(s,a)] + alpha_t*\
                     (r + self.domain.discount*np.max(np.array([q_hat[(s_prime,a_prime)] for a_prime in self.domain.actions])))
-                q_hat[(s,a)]
+                q_hat[(s,a)] = buffer
             curr_state = s_prime # update current state to next state
             if protocol == 2:
                 alpha_t = 0.8 * alpha_t
