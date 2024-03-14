@@ -106,11 +106,11 @@ class OnlineQ:
         if type == "det":
             self.mdp.det_policy.cache_clear() # Clearing the cache
             self.mdp.det_Q_N.cache_clear() # Clearing the cache
-            opt_policy = self.mdp.det_policy(n)
+            opt_policy = self.mdp.det_policy(10)
         else:
             self.mdp.det_policy.cache_clear() # Clearing the cache
             self.mdp.det_Q_N.cache_clear() # Clearing the cache
-            opt_policy = self.mdp.sto_policy(n)
+            opt_policy = self.mdp.sto_policy(10)
 
         policy = [self.domain.actions[i] for i in opt_policy]
         for i, j in product(range(self.domain.n), range(self.domain.m)):
