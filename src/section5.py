@@ -523,10 +523,10 @@ if __name__ == "__main__":
         print(f"Protocol {i}")
         print("Deterministic")
         det_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "det", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i, path="./5.2")
+        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i)
         print("Stochastic")
         sto_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "sto", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i, path="./5.2")
+        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i)
 
     print("Section 5.3")
  
@@ -560,7 +560,7 @@ if __name__ == "__main__":
         print(f"Protocol {i}")
         print("Deterministic")
         det_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "det", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i, path="./5.3")
+        onlineQ.plot_convergence(nbr_ep, det_diffs, det_diffs_l2, type = "det", protocol = i)
         print("Stochastic")
         sto_diffs, det_diffs_l2 = onlineQ.sim_episodes(s0, nbr_transi, nbr_ep, type = "sto", protocol = i)
-        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i, path="./5.3")
+        onlineQ.plot_convergence(nbr_ep, sto_diffs, det_diffs_l2, type = "sto", protocol = i)
