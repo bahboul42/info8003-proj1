@@ -108,8 +108,8 @@ class OnlineQ:
             self.mdp.det_Q_N.cache_clear() # Clearing the cache
             opt_policy = self.mdp.det_policy(10)
         else:
-            self.mdp.det_policy.cache_clear() # Clearing the cache
-            self.mdp.det_Q_N.cache_clear() # Clearing the cache
+            self.mdp.sto_policy.cache_clear() # Clearing the cache
+            self.mdp.sto_Q_N.cache_clear() # Clearing the cache
             opt_policy = self.mdp.sto_policy(10)
 
         policy = [self.domain.actions[i] for i in opt_policy]
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     # Initialize the domain
     domain = Domain(n, m, g, s0, random_state=42)
 
-    print("Section 5.1")
+    '''print("Section 5.1")
     
     # Initialize our class
     alpha_k = 0.05
@@ -489,7 +489,7 @@ if __name__ == "__main__":
     plt.ylim(0, None)
     plt.grid()
     plt.legend()
-    plt.show()
+    plt.show()'''
 
 
     print("Section 5.2")
