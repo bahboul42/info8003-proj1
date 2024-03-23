@@ -35,9 +35,9 @@ class Domain:
     
     def update_trajectory(self, x, a, r, x_prime):
         """Updates the trajectory with the current state and action."""
-        s, p = x
-        s_prime, p_prime = x_prime
-        self.trajectory.append((s, p, a, r, s_prime, p_prime))
+        p, s = x
+        p_prime, s_prime = x_prime
+        self.trajectory.append((p, s, a, r, p_prime, s_prime))
 
     def reset_trajectory(self):
         """Resets the trajectory and sample new initial state."""
@@ -76,7 +76,7 @@ class Domain:
         p_next = p + dp * self.int_time_step
         s_next = s + ds * self.int_time_step 
         if abs(p_next) > 1 or abs(s_next) > 3: # not sure if this is correct : reward = 0 after/ snapping car to 1?
-            return np.sign(p_next), 0
+            return p_next, 0
         return p_next, s_next
 
     def reward(self, p_next, s_next):
@@ -102,9 +102,11 @@ class Domain:
         """Prints the trajectory."""
         traj = self.get_trajectory()
         l_traj = len(traj)
+
+        print('Step (p, s), a, r, (p_prime, s_prime)')
         for i, t in enumerate(traj):
-            s, p, a, r, s_prime, p_prime = t
-            print(f"Step ({i+1}/{l_traj} : {s}, {p}), {a}, {r}, ({s_prime}, {p_prime})", flush=True)
+            p, s, a, r, p_prime, s_prime = t
+            print(f"Step ({i+1}/{l_traj} : {p}, {s}), {a}, {r}, ({p_prime}, {s_prime})", flush=True)
 
 class AcceleratingAgent:
     def __init__(self):
@@ -115,7 +117,7 @@ class AcceleratingAgent:
 
 class MomentumAgent:
     def __init__(self):
-        self.direction = 1
+        self.direction = -1
 
     def get_action(self, state):
         _, s = state
@@ -128,7 +130,7 @@ if __name__ == "__main__":
     domain = Domain() # Create the environment
     domain.sample_initial_state() # Sample an initial state
     
-    agent = AcceleratingAgent() # Create the agent
+    agent = MomentumAgent() # Create the agent
 
     # Simulate the system
     n_steps = 1000
