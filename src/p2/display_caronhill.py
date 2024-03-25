@@ -56,7 +56,7 @@ def rotate(image, rect, angle):
 def Hill(p):
      return p*p+p if p < 0 else p/(sqrt(1+5*p*p))
 
-def save_caronthehill_image(position,speed,out_file=None,close=False):
+def save_caronthehill_image(position, speed, out_file=None, close=False):
     global screen, car, pt, background, checked, size_pt, width_pt, height_pt, size_car, width_car, height_car
     if screen is None:
         screen = pygame.display.set_mode((CANVAS_WIDTH, CANVAS_HEIGHT))
@@ -83,19 +83,11 @@ def save_caronthehill_image(position,speed,out_file=None,close=False):
         width_pt = size_pt[0]
         height_pt = size_pt[1]
 
-
-    
-
-
-
     #Surface loading
     surf = pygame.Surface((CANVAS_WIDTH,CANVAS_HEIGHT))   
     surf.convert() 
 
-    
-
-    #Discretization of the hill function steps 
-    
+    #Discretization of the hill function steps  
     
     #Draw the background and the hill function altogether
     if not checked and not os.path.isfile("background_"+str(CANVAS_WIDTH)+"_"+str(CANVAS_HEIGHT)+".png"):

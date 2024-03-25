@@ -9,6 +9,8 @@ class Domain:
         self.m = m
         self.discount = discount  # Discount factor
 
+        self.rflag = False  # Flag for the reward function
+
         self.p = None  # Position
         self.s = None
 
@@ -18,11 +20,13 @@ class Domain:
         """Resets the environment."""
         self.sample_initial_state()
         self.trajectory = []
+        self.rflag = False
 
     def sample_initial_state(self):
         """Samples an initial state from the initial state distribution."""
         self.p = np.random.uniform(-0.1, 0.1)
         self.s = 0
+        self.rflag = False
 
     def get_state(self):
         """Returns the current state of the environment."""
@@ -71,19 +75,25 @@ class Domain:
             
     def dynamics(self, p, s, u):
         """Computes the next state given the current state and action using Euler's method."""
+        if self.rflag:
+            return p, s
         dp = s
-        ds = u / self.m*(1 + self.hill(p, 1)**2) - (self.g * self.hill(p)) / (1 + self.hill(p, 1)**2) - (s**2 * self.hill(p, 1) * self.hill(p, 2)) / (1 + self.hill(p, 1)**2)
+        ds = (u / self.m*(1 + self.hill(p, 1)**2)) - ((self.g * self.hill(p, 1)) / (1 + self.hill(p, 1)**2))\
+              - ((s**2 * self.hill(p, 1) * self.hill(p, 2)) / (1 + self.hill(p, 1)**2))
         p_next = p + dp * self.int_time_step
         s_next = s + ds * self.int_time_step 
-        if abs(p_next) > 1 or abs(s_next) > 3: # not sure if this is correct : reward = 0 after/ snapping car to 1?
-            return p_next, 0
         return p_next, s_next
 
     def reward(self, p_next, s_next):
         """Computes the reward based on the next state."""
+        if self.rflag: # if the car exceeds the boundaries
+            return 0
+        
         if p_next < -1 or abs(s_next) > 3:
+            self.rflag = True
             return -1
         elif p_next > 1 and abs(s_next) <= 3:
+            self.rflag = True
             return 1
         else:
             return 0
@@ -120,9 +130,12 @@ class MomentumAgent:
         self.direction = -1
 
     def get_action(self, state):
-        _, s = state
-        if s == 0:
+        p, s = state
+
+        if np.isclose(p, -0.5, atol=0.1):
             self.direction *= -1
+        # if np.isclose(s, 0) or np.isclose(s, -2):
+        #     self.direction *= -1
         return 4 * self.direction # problem when s = 0
 
 if __name__ == "__main__":
