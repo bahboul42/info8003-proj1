@@ -27,8 +27,7 @@ def make_video(trajectory):
     images = []
     for filename in filenames:
         images.append(imageio.imread(filename))
-    imageio.mimsave(f'gif/{t}/movie.gif', images, duration=1e-7)
-
+    imageio.mimsave(f'gif/{t}/movie.gif', images, fps=300)
     print("Removing images...")
     for filename in filenames:
         os.remove(filename)
@@ -53,10 +52,10 @@ if __name__ == "__main__":
     p = [x[0] for x in traj]
     s = [x[1] for x in traj]
 
-    plt.plot(np.arange(len(p)), p, label='p')
-    plt.plot(np.arange(len(s)), s, label='s')
-    plt.legend()
-    plt.show()
+    # plt.plot(np.arange(len(p)), p, label='p')
+    # plt.plot(np.arange(len(s)), s, label='s')
+    # plt.legend()
+    # plt.show()
 
     make_video(traj)
 
