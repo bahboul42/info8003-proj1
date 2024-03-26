@@ -78,7 +78,7 @@ class Domain:
         if self.rflag:
             return p, s
         dp = s
-        ds = (u / self.m*(1 + self.hill(p, 1)**2)) - ((self.g * self.hill(p, 1)) / (1 + self.hill(p, 1)**2))\
+        ds = (u / (self.m*(1 + self.hill(p, 1)**2))) - ((self.g * self.hill(p, 1)) / (1 + self.hill(p, 1)**2))\
               - ((s**2 * self.hill(p, 1) * self.hill(p, 2)) / (1 + self.hill(p, 1)**2))
         p_next = p + dp * self.int_time_step
         s_next = s + ds * self.int_time_step 
@@ -143,7 +143,8 @@ if __name__ == "__main__":
     domain = Domain() # Create the environment
     domain.sample_initial_state() # Sample an initial state
     
-    agent = MomentumAgent() # Create the agent
+    # agent = MomentumAgent() # Create the agent
+    agent = AcceleratingAgent()
 
     # Simulate the system
     n_steps = 1000
