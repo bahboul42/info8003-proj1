@@ -132,7 +132,7 @@ class MomentumAgent:
     def get_action(self, state):
         p, s = state
 
-        if np.isclose(p, -0.5, atol=0.1):
+        if np.isclose(s, 0, atol=0.01):
             self.direction *= -1
         # if np.isclose(s, 0) or np.isclose(s, -2):
         #     self.direction *= -1
