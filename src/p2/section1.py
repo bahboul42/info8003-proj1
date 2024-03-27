@@ -151,13 +151,8 @@ if __name__ == "__main__":
     domain = Domain() # Create the environment
     domain.sample_initial_state() # Sample an initial state
     
-<<<<<<< Updated upstream
     agent = MomentumAgent() # Create the agent
     # agent = AcceleratingAgent()
-=======
-    # agent = MomentumAgent() # Create the agent
-    agent = MomentumAgent()
->>>>>>> Stashed changes
 
     # Simulate the system
     n_steps = 3000

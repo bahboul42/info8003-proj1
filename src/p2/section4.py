@@ -57,6 +57,7 @@ def traj_step(domain=Domain(), strategy='uniform', X=[], y=[], z=[]):
     return X, y, z
 
 def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
+    domain.sample_initial_state()
     if mode == 'randn':
         X, y, z = traj_step(domain=domain)
         for _ in tqdm(range(n_iter)):
@@ -67,12 +68,14 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
         X, y, z = [], [], []
         for _ in tqdm(range(n_episodes)):
             r = 0
-            while domain.get_rflag() == False:
+            while not domain.get_rflag():
                 (p, s), a, r, (p_next, s_next) = domain.step(np.random.choice([4, -4]))
                 X.append((p, s, a))
                 y.append(r)
                 z.append((p_next, s_next))
-        domain.reset()
+            domain.reset()
+        print(np.unique(np.array(y), return_counts=True))   
+        print(f"Generated {n_episodes} episodes. and X shape: {np.array(X).shape}")
         return np.array(X), np.array(y), np.array(z)
     ################## TO DELETE ##################
     elif mode == 'csv':
@@ -114,7 +117,7 @@ def plot_q(model):
 
 if __name__ == "__main__":
     
-    X, y, z = get_set(mode='randn', n_iter=int(1e5))
+    X, y, z = get_set(mode='episodic', n_iter=int(1000))
 
     domain = Domain()
     model = LinearRegression()
