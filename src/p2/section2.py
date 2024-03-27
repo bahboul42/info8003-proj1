@@ -26,7 +26,7 @@ class PolicyEstimator:
 
         return est_return
     
-    def plot_return(self, all_returns, path="../../figures/project2/section2"):
+    def plot_return(self, all_returns, filename = "", path="../../figures/project2/section2"):
         """Plot the evolution of the estimated expected return against horizon N."""
         
         n_initials = all_returns.shape[0]
@@ -43,7 +43,7 @@ class PolicyEstimator:
         plt.legend()
         plt.grid(True, which="both", ls="--")
         
-        plt.savefig(path+f'/conv_exp_return.png')
+        plt.savefig(path+f'/conv_exp_return{filename}.png')
 
 
 if __name__ == "__main__":
