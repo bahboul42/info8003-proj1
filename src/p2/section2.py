@@ -55,7 +55,7 @@ if __name__ == "__main__":
     policy_est = PolicyEstimator(domain, agent)
 
     n_initials = 50 # Number of initial states
-    N = 10000 # Horizon
+    N = 5000 # Horizon
 
     all_returns = policy_est.policy_return(N, n_initials) # Get all the estimated expected returns
 
