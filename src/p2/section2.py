@@ -71,8 +71,3 @@ if __name__ == "__main__":
             count_neg += 1
     print(f'Number of successful trajectories: {count_pos}')
     print(f'Number of unsuccessful trajectories: {count_neg}')
-
-
-
-
-
