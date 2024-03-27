@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from section1 import Domain
-# from section1 import AcceleratingAgent
+from section1 import AcceleratingAgent
 from section1 import MomentumAgent
 
 class PolicyEstimator:
@@ -14,6 +14,7 @@ class PolicyEstimator:
 
         for i in range(n_initials):
             self.domain.reset() # Reset the domain
+            # self.domain.set_state(-0.0986, 0)
             cum_reward = 0
 
             for j in range(N):
@@ -23,16 +24,20 @@ class PolicyEstimator:
                 cum_reward += (self.domain.discount ** j) * r # Update cumulative reward
                 est_return[i, j] = cum_reward # Store current cumulative reward
 
+            (print(self.domain.get_trajectory()[-1]))
+
         return est_return
     
     def plot_return(self, N, n_initials, path="../../figures/project2/section2"):
         """Plot the evolution of the estimated expected return against horizon N."""
         evol_return = self.policy_return(N, n_initials)
 
+        print(evol_return[:,-1])
+
         plt.figure(figsize=(10, 6))
         for i in range(n_initials):
             plt.plot(range(1, N + 1), evol_return[i, :], color = 'blue')
-        plt.plot(range(1, N+1), np.mean(evol_return, axis = 0), color = 'red', label = 'Average over 50 trajectories')
+        plt.plot(range(1, N+1), np.mean(evol_return, axis = 0), color = 'red', label = f'Average over {n_initials} trajectories')
         plt.title(f"Convergence of expected return against N")
         plt.xlabel('N')
         plt.ylabel('Expected return')
@@ -51,9 +56,9 @@ if __name__ == "__main__":
     # agent = AcceleratingAgent()
     policy_est = PolicyEstimator(domain, agent)
 
-    n_initials = 50 # Number of initial states
-    N = 4000 # Horizon
-    policy_est.plot_return(4000, n_initials)
+    n_initials = 10 # Number of initial states
+    N = 5000 # Horizon
+    policy_est.plot_return(N, n_initials)
 
 
 
