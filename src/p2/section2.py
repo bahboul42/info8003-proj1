@@ -10,11 +10,11 @@ class PolicyEstimator:
         self.agent = agent
 
     def policy_return(self, N, n_initials):
+        '''Derive the estimated expected returns for horizon up to N, using n_initials starting states'''
         est_return = np.zeros((n_initials, N))
 
         for i in range(n_initials):
             self.domain.reset() # Reset the domain
-            # self.domain.set_state(-0.0986, 0)
             cum_reward = 0
 
             for j in range(N):
@@ -24,20 +24,18 @@ class PolicyEstimator:
                 cum_reward += (self.domain.discount ** j) * r # Update cumulative reward
                 est_return[i, j] = cum_reward # Store current cumulative reward
 
-            (print(self.domain.get_trajectory()[-1]))
-
         return est_return
     
-    def plot_return(self, N, n_initials, path="../../figures/project2/section2"):
+    def plot_return(self, all_returns, path="../../figures/project2/section2"):
         """Plot the evolution of the estimated expected return against horizon N."""
-        evol_return = self.policy_return(N, n_initials)
-
-        print(evol_return[:,-1])
+        
+        n_initials = all_returns.shape[0]
+        N = all_returns.shape[1]
 
         plt.figure(figsize=(10, 6))
         for i in range(n_initials):
-            plt.plot(range(1, N + 1), evol_return[i, :], color = 'blue')
-        plt.plot(range(1, N+1), np.mean(evol_return, axis = 0), color = 'red', label = f'Average over {n_initials} trajectories')
+            plt.plot(range(1, N + 1), all_returns[i, :], color = 'blue')
+        plt.plot(range(1, N+1), np.mean(all_returns, axis = 0), color = 'red', label = f'Average over {n_initials} trajectories')
         plt.title(f"Convergence of expected return against N")
         plt.xlabel('N')
         plt.ylabel('Expected return')
@@ -56,9 +54,24 @@ if __name__ == "__main__":
     # agent = AcceleratingAgent()
     policy_est = PolicyEstimator(domain, agent)
 
-    n_initials = 10 # Number of initial states
-    N = 5000 # Horizon
-    policy_est.plot_return(N, n_initials)
+    n_initials = 50 # Number of initial states
+    N = 10000 # Horizon
+
+    all_returns = policy_est.policy_return(N, n_initials) # Get all the estimated expected returns
+
+    policy_est.plot_return(all_returns) # Plot the returns for the 50 initial states
+
+    # Inspecting the final expected return of all trajectories to know in more detail
+    count_pos = 0
+    count_neg = 0
+    for i in range(n_initials):
+        if all_returns[i, -1] > 0:
+            count_pos += 1
+        elif all_returns[i, -1] < 0:
+            count_neg += 1
+    print(f'Number of successful trajectories: {count_pos}')
+    print(f'Number of unsuccessful trajectories: {count_neg}')
+
 
 
 
