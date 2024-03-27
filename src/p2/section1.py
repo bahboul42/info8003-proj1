@@ -47,7 +47,14 @@ class Domain:
         """Resets the trajectory and sample new initial state."""
         self.trajectory = []
 
+    def get_rflag(self):
+        """Returns the reward flag."""
+        return self.rflag
     
+    def reset_rflag(self):
+        """Resets the reward flag."""
+        self.rflag = False
+        
     def get_trajectory(self):
         """Returns the trajectory."""
         return self.trajectory
@@ -108,7 +115,7 @@ class Domain:
         self.update_trajectory((p, s), action, r, (p_next, s_next))
         return (p, s), action, r, (p_next, s_next)
     
-    def print_trajectory(self):
+    def print_trajectory(self, mod=1):
         """Prints the trajectory."""
         traj = self.get_trajectory()
         l_traj = len(traj)
@@ -116,7 +123,8 @@ class Domain:
         print('Step (p, s), a, r, (p_prime, s_prime)')
         for i, t in enumerate(traj):
             p, s, a, r, p_prime, s_prime = t
-            print(f"Step ({i+1}/{l_traj} : {p}, {s}), {a}, {r}, ({p_prime}, {s_prime})", flush=True)
+            if i % mod == 0:
+                print(f"Step ({i+1}/{l_traj} : {p}, {s}), {a}, {r}, ({p_prime}, {s_prime})", flush=True)
 
 class AcceleratingAgent:
     def __init__(self):
@@ -143,16 +151,21 @@ if __name__ == "__main__":
     domain = Domain() # Create the environment
     domain.sample_initial_state() # Sample an initial state
     
+<<<<<<< Updated upstream
     agent = MomentumAgent() # Create the agent
     # agent = AcceleratingAgent()
+=======
+    # agent = MomentumAgent() # Create the agent
+    agent = MomentumAgent()
+>>>>>>> Stashed changes
 
     # Simulate the system
-    n_steps = 1000
+    n_steps = 3000
     for _ in range(n_steps):
         state = domain.get_state()
         action = agent.get_action(state)
         domain.step(action)
 
-    domain.print_trajectory()
+    domain.print_trajectory(mod=1)
 
     domain.reset() # Reset the trajectory for future use
