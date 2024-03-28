@@ -44,6 +44,7 @@ class PolicyEstimator:
         plt.grid(True, which="both", ls="--")
         
         plt.savefig(path+f'/conv_exp_return{filename}.png')
+        plt.close()
 
 
 if __name__ == "__main__":
