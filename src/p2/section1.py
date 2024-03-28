@@ -163,11 +163,14 @@ if __name__ == "__main__":
     # agent = AcceleratingAgent()
 
     # Simulate the system
-    n_steps = 200
+    n_steps = 500
     for _ in range(n_steps):
         state = domain.get_state()
         action = agent.get_action(state)
-        domain.step(action)
+        _, _, r, _ = domain.step(action)
+
+        if r != 0: # we stop simulating if a terminal state is reached
+            break
 
     domain.print_trajectory(mod=1)
 

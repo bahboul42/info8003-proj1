@@ -42,24 +42,21 @@ def make_video(trajectory):
 if __name__ == "__main__":
 
     domain = Domain() # Create the environment
-    state = domain.set_state(0, 0) # Sample an initial state
+    state = domain.set_state(-0.5, 0) # Sample an initial state
 
     agent = MomentumAgent() # Create the agent
     
-    n_steps = 3000
+    n_steps = 500
     for _ in range(n_steps):
         state = domain.get_state()
         action = agent.get_action(state)
-        domain.step(action)
+        _, _, r, _ = domain.step(action)
+
+        if r != 0: # we stop simulating if a terminal state is reached
+            break
 
     traj = domain.get_trajectory()
     p = [x[0] for x in traj]
     s = [x[1] for x in traj]
-
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(np.arange(len(p)), p, label='p')
-    # plt.plot(np.arange(len(s)), s, label='s')
-    # plt.legend()
-    # plt.show()
 
     make_video(traj)

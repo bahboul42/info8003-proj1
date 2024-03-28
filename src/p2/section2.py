@@ -52,12 +52,13 @@ if __name__ == "__main__":
     domain = Domain() # Create the environment
     domain.sample_initial_state() # Sample an initial state
 
-    agent = RandomAgent() # Create the agent
+    agent = MomentumAgent() # Create the agent
     # agent = AcceleratingAgent()
+    # agent = RandomAgent()
     policy_est = PolicyEstimator(domain, agent)
 
     n_initials = 50 # Number of initial states
-    N = 5000 # Horizon
+    N = 300 # Horizon
 
     all_returns = policy_est.policy_return(N, n_initials) # Get all the estimated expected returns
 
