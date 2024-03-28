@@ -84,6 +84,7 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
         X, y, z = [], [], []
         for _ in tqdm(range(n_episodes)):
             r = 0
+            domain.set_state(-.5, 0)
             while not domain.get_rflag():
                 (p, s), a, r, (p_next, s_next) = domain.step(np.random.choice([4, -4]))
                 X.append((p, s, a))
