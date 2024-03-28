@@ -42,7 +42,7 @@ def make_video(trajectory):
 if __name__ == "__main__":
 
     domain = Domain() # Create the environment
-    state = domain.set_state(-0.5, 0) # Sample an initial state
+    state = domain.set_state(0, 0) # Set the starting state to (0,0)
 
     agent = MomentumAgent() # Create the agent
     
