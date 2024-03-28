@@ -31,7 +31,7 @@ def make_video(trajectory):
         with Image.open(filename) as img:
             images.append(img.copy())
     gif_filename = f'{gif_path}/movie.gif'
-    images[0].save(gif_filename, save_all=True, append_images=images[1:], duration=1.67, loop=0)
+    images[0].save(gif_filename, save_all=True, append_images=images[1:], fps = 10, loop=0)
 
     print("Removing images...")
     for filename in filenames:
