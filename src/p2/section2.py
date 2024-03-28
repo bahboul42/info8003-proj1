@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from section1 import Domain
-from section1 import AcceleratingAgent
-from section1 import MomentumAgent
+from section1 import *
 
 class PolicyEstimator:
     def __init__(self, domain, agent):
@@ -48,10 +47,12 @@ class PolicyEstimator:
 
 
 if __name__ == "__main__":
+    np.random.seed(0)
+
     domain = Domain() # Create the environment
     domain.sample_initial_state() # Sample an initial state
 
-    agent = MomentumAgent() # Create the agent
+    agent = RandomAgent() # Create the agent
     # agent = AcceleratingAgent()
     policy_est = PolicyEstimator(domain, agent)
 

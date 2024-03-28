@@ -85,8 +85,8 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
         for _ in tqdm(range(n_episodes)):
             r = 0
             domain.set_state(-.5, 0)
-            while not domain.get_rflag():
-                (p, s), a, r, (p_next, s_next) = domain.step(np.random.choice([4, -4]))
+            while r == 0:
+                (p, s), a, r, (p_next, s_next) = domain.step(np.random.choice([4, -4]), update=False)
                 X.append((p, s, a))
                 y.append(r)
                 z.append((p_next, s_next))
@@ -204,8 +204,12 @@ if __name__ == "__main__":
     # all_alg = ['linear', 'trees', 'nn']
     # all_stop = [0, 1]
 
-    traj = 'randn' # need to use a for loop
-    X, y, z = get_set(mode=traj, n_iter=int(50000))
+    traj = 'episodic' # need to use a for loop
+    X, y, z = get_set(mode=traj, n_iter=int(1))
+
+    # save to csv
+    df = pd.DataFrame({'p': X[:,0], 's': X[:,1], 'a': X[:,2], 'r': y, 'p_prime': z[:,0], 's_prime': z[:,1]})
+    df.to_csv(f"data/traj_len_{1000}.csv", index=False)
 
     N = 50 # might change if we change stopping criterion
     alg = 'trees' # need to use a for loop

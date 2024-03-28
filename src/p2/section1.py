@@ -68,17 +68,17 @@ class Domain:
             if p < 0:
                 return (p**2 + p)
             else:
-                return p / np.sqrt(1 + 5*p**2)
+                return p / np.sqrt(1 + 5*(p**2))
         elif derivative == 1:
             if p < 0:
                 return 2*p + 1
             else:
-                return 1/(5*p**2+1)**(3/2)
+                return 1/((5*p**2+1)**(3/2))
         else :
             if p < 0:
                 return 2
             else:
-                return -15*p/(5*p**2+1)**(5/2)
+                return -15*p/((5*(p**2)+1)**(5/2))
             
     def dynamics(self, p, s, u):
         """Computes the next state given the current state and action using Euler's method."""
@@ -105,14 +105,15 @@ class Domain:
         else:
             return 0
 
-    def step(self, action):
+    def step(self, action, update=True):
         """Takes a step in the environment."""
         p, s = self.get_state()
         for _ in range(int(self.dis_time_step / self.int_time_step)): # Discretization
             p_next, s_next = self.dynamics(p, s, action)
             self.set_state(p_next, s_next)
         r = self.reward(p_next, s_next)
-        self.update_trajectory((p, s), action, r, (p_next, s_next))
+        if update:
+            self.update_trajectory((p, s), action, r, (p_next, s_next))
         return (p, s), action, r, (p_next, s_next)
     
     def print_trajectory(self, mod=1):
@@ -145,6 +146,13 @@ class MomentumAgent:
         # if np.isclose(s, 0) or np.isclose(s, -2):
         #     self.direction *= -1
         return 4 * self.direction # problem when s = 0
+    
+class RandomAgent:
+    def __init__(self):
+        pass
+
+    def get_action(self, state):
+        return np.random.choice([4, -4])
 
 if __name__ == "__main__":
 

@@ -1,4 +1,4 @@
-from section1 import Domain, MomentumAgent
+from section1 import *
 from display_caronhill import save_caronthehill_image
 import os
 import time
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     domain = Domain() # Create the environment
     state = domain.set_state(0, 0) # Sample an initial state
 
-    agent = MomentumAgent() # Create the agent
+    agent = AcceleratingAgent() # Create the agent
     
     n_steps = 3000
     for _ in range(n_steps):
