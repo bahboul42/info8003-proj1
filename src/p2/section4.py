@@ -5,7 +5,9 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
-
+from section3 import make_video
+import torch
+from itertools import product
 ## TO DELETE
 from tqdm import tqdm
 import pandas as pd
@@ -23,12 +25,15 @@ def fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
         model = LinearRegression()
 
     elif alg == 'trees':
-        model = ExtraTreesRegressor(n_estimators= 50, min_samples_leaf = 2)
-        # parameters chosen based on paper. note: they say k = input size, which is default I think
-
+        model = ExtraTreesRegressor(n_estimators=50, min_samples_leaf=2, random_state=42)
+        # parameters chosen based on paper. note: they say k = input size, which is default I think : yes
+    elif alg == 'nn':
+        return nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0)
+    else :
+        raise ValueError("Invalid algorithm for learning.")
+    
     model.fit(X, y)
-    for i in range(n_q-1):
-        print(i) # just to keep track
+    for _ in tqdm(range(n_q-1)):
         concat = np.column_stack((model.predict(z_pos), model.predict(z_neg)))
         out = y + domain.discount * np.max(concat, axis=1)
 
@@ -38,10 +43,13 @@ def fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
 
         e = mse(l_pred, r_pred)
         error.append(e)
-        if stopping and e < 1e-3:
+        if stopping and e < 1e-4:
             break
         
     return model, error
+
+def nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
+    pass
 
 def mse(old_pred, new_pred):
     ''' Computes MSE between Q_N and Q_(N-1) '''
@@ -94,14 +102,6 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
         print(np.unique(np.array(y), return_counts=True))   
         print(f"Generated {n_episodes} episodes. and X shape: {np.array(X).shape}")
         return np.array(X), np.array(y), np.array(z)
-    ################## TO DELETE ##################
-    elif mode == 'csv':
-        df = pd.read_csv(f"data/traj_len_{n_iter}.csv")
-        X = df[['p', 's', 'a']]
-        y = df['r']
-        z = df[['p_prime', 's_prime']]
-        return X.to_numpy(), y.to_numpy(), z.to_numpy()
-    ###############################################
     else:
         raise ValueError("Invalid mode for generating dataset.")
 
@@ -110,11 +110,14 @@ def q_eval(p, s, a, model):
     # Reformatted to create a 2D array suitable for model.predict
     # Stack p, s, and a arrays along the last axis and reshape into (-1, 3) for model input
     psa = np.stack((p, s, np.full(p.shape, a)), axis=-1).reshape(-1, 3)
-    print(psa)
+    # print(psa)
     return model.predict(psa)
 
-def plot_q(model, res, options ="", path = "../../figures/project2/section4"):
+def plot_q(model, res, options, path = "../../figures/project2/section4"):
     '''Plot the estimation of Q_N'''
+    alg, traj, stop = options
+    options = alg + '_' + traj + '_' + 'stop:' + str(stop)
+
     p_values = np.arange(-1, 1 + res, res)  # Range of values considered for p
     s_values = np.arange(-3, 3 + res, res)  # Range of values considered for s
 
@@ -130,7 +133,7 @@ def plot_q(model, res, options ="", path = "../../figures/project2/section4"):
         plt.colorbar(label='$\hat{Q}_N$')
         plt.xlabel('p')
         plt.ylabel('s')
-        plt.title(f'$\hat{{Q}}_N$ value for action {a}') # need to be modified so that it states options
+        # plt.title(f'$\hat{{Q}}_N$ value for action {a}') # need to be modified so that it states options
         plt.axis('tight')
         plt.savefig(path+f'/Q_N_action_{a}_{options}.png')   # Save the plot
         plt.close()
@@ -150,8 +153,11 @@ class OptimalAgent: # do we need another agent specifically for NN or is that ok
             else:
                 return -4
             
-def plot_policy(model, res, options = "", path="../../figures/project2/section4"):
+def plot_policy(model, res, options, path="../../figures/project2/section4"):
     '''Plot an agent's policy using a given resolution'''
+    alg, traj, stop = options
+    options = alg + '_' + traj + '_' + 'stop:' + str(stop)
+
     p_values = np.arange(-1, 1 + res, res)
     s_values = np.arange(-3, 3 + res, res)
     
@@ -187,7 +193,7 @@ def plot_policy(model, res, options = "", path="../../figures/project2/section4"
 
     plt.legend()
 
-    plt.title(f'Optimal policy for {options}')
+    # plt.title(f'Optimal policy for {options}')
 
     plt.grid(True) # Not sure the grid makes sense
     
@@ -196,68 +202,71 @@ def plot_policy(model, res, options = "", path="../../figures/project2/section4"
     plt.close()
     print('policy plotted')
 
-
-if __name__ == "__main__":
-    domain = Domain() # need to make sure that by putting it here, we don't miss a domain reset anywhere
-
-    # all_traj = ['randn', 'episodic']
-    # all_alg = ['linear', 'trees', 'nn']
-    # all_stop = [0, 1]
-
-    traj = 'episodic' # need to use a for loop
-    X, y, z = get_set(mode=traj, n_iter=int(1))
-
-    # save to csv
-    df = pd.DataFrame({'p': X[:,0], 's': X[:,1], 'a': X[:,2], 'r': y, 'p_prime': z[:,0], 's_prime': z[:,1]})
-    df.to_csv(f"data/traj_len_{1000}.csv", index=False)
-
-    N = 50 # might change if we change stopping criterion
-    alg = 'trees' # need to use a for loop
-    stop = 0 # need to use a for loop
-    model, error = fitted_q_iteration(domain, alg, N, (X, y, z), stopping = stop)
-
+def plot_e(traj, alg, stop, error, path="../../figures/project2/section4"):
     plt.figure(figsize=(10, 6))
     plt.plot(np.arange(len(error)), error)
-    plt.title('MSE between Q_N and Q_(N-1)')
+    # plt.title('MSE between Q_N and Q_(N-1)')
     plt.xlabel('N')
     plt.ylabel('MSE')
     plt.grid(True, which="both", ls="--")
-    plt.savefig('mse.png')
+    plt.savefig(path+f'mse_{traj}_{alg}_{stop}.png')
     plt.close()
 
-    options = alg + '_' + traj + '_' + 'stop' + str(stop) # still need to decompose that to make pretty plot titles
+if __name__ == "__main__":
+    np.random.seed(0)
+    domain = Domain()
 
-    res = 0.01 # resolution for the plots
+    # all_traj = ['randn', 'episodic']
+    all_traj = ['randn']
+    all_alg = ['linear', 'trees']
+    all_stop = [0, 1]
+    all_res = [.01]
 
-    plot_q(model, res, options=options)
+    evol_avg_return = {}
 
-    plot_policy(model, res, options = options)
+    print('Starting section 4...')
+    for traj in all_traj:
+        iters = 10000 if traj == 'randn' else 1000
+        print(f'Fetching {traj} set...')
+        X, y, z = get_set(mode=traj, n_iter=int(iters))
+        for alg, stop, res in product(all_alg, all_stop, all_res):
+            print(f'Running with {alg} algorithm and stopping is : {bool(stop)}')
+            options = (alg, traj, stop)
 
-    # I think we need to find another way of estimating the expected return of the policy
-    # because this is slow (it has to make a model prediction at every time step (5,000) for each initial state (50))
-    # (maybe there's no easier option idk)
-    '''# once we have final model
-    opt_agent = OptimalAgent(model, alg = 'linear')
 
-    # Estimating the return of the policy:
-    policy_est = PolicyEstimator(domain, opt_agent)
+            N = 50 # might change if we change stopping criterion
+            print('Fitting...')
+            model, error = fitted_q_iteration(domain, alg, N, (X, y, z), stopping=stop)
 
-    n_initials = 50 # Number of initial states
-    N = 5000 # Horizon
+            print("Plotting...")
+            plot_e(traj, alg, stop, error, path='figures/section4/error')
+            plot_q(model, res, options=options, path='figures/section4/qfuncs')
+            plot_policy(model, res, options=options, path='figures/section4/policies')
 
-    # In this case, wouldn't it be more interesting to have a single plot with the 
-    # estimated expected return (averaged over all initial states basically) of all models obtained?
+            opt_agent = OptimalAgent(model, alg=alg)
 
-    # if we just do one plot per model:
-    all_returns = policy_est.policy_return(N, n_initials) # Get all the estimated expected returns
+            domain.reset()
+            r = 0
+            while r == 0:
+                state = domain.get_state()
+                action = opt_agent.get_action(state)
+                _, _, r, _ = domain.step(action)
+            make_video(domain.get_trajectory(), options=options, path='figures/section4/gifs')
 
-    policy_est.plot_return(all_returns, filename="_"+options, path="../../figures/project2/section4") # Plot the returns for the 50 initial states
+            policy_est = PolicyEstimator(domain, opt_agent)
 
-    # If we want to do one plot for all models, can just store for each model:
-    evol_avg_return = np.mean(all_returns, axis = 0) # Then can just adapt the policy_est.plot_return function very easily
+            n_initials = 50 
+            N = 300 
+            print(f"Applying monte carlo for Expected return {n_initials} times with horizon {N}...")
+            # In this case, wouldn't it be more interesting to have a single plot with the 
+            # estimated expected return (averaged over all initial states basically) of all models obtained?
 
-    print(f'Estimated expected return of policy {options}: {np.mean(all_returns[:,-1])}') # Print the average so that we also have it numerically
+            all_returns = policy_est.policy_return(N, n_initials) # Get all the estimated expected returns
+            policy_est.plot_return(all_returns, filename="_"+alg+traj+str(stop), path="figures/section4/ereturns") # Plot the returns for the 50 initial states
 
-'''
+            evol_avg_return[options] = all_returns
 
+            print(f'Estimated expected return of policy {options}: {np.mean(all_returns[:,-1])}') # Print the average so that we also have it numerically
+    
+    policy_est.plot_mean_returns(evol_avg_return, filename="_FINAL", path="figures/section4/ereturns")
 

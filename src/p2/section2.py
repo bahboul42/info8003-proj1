@@ -45,6 +45,25 @@ class PolicyEstimator:
         plt.savefig(path+f'/conv_exp_return{filename}.png')
         plt.close()
 
+    def plot_mean_returns(option_returns_dict, filename="", path="../../figures/project2/section2"):
+        """Plot the mean expected return for different option combinations."""
+        
+        plt.figure(figsize=(10, 6))
+        
+        for options, returns in option_returns_dict.items():
+            N = returns.shape[1]  # Horizon length
+            mean_returns = np.mean(returns, axis=0)  # Mean over simulations
+            plt.plot(range(1, N + 1), mean_returns, label=f'Options: {options}')
+        
+        plt.title("Convergence of mean expected return against N")
+        plt.xlabel('N')
+        plt.ylabel('Mean expected return')
+        plt.xlim((1, N + 1))
+        plt.legend()
+        plt.grid(True, which="both", ls="--")
+        
+        plt.savefig(path + f'/mean_exp_return{filename}.png')
+        plt.close()
 
 if __name__ == "__main__":
     np.random.seed(0)

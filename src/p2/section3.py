@@ -6,17 +6,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-def make_video(trajectory):
+def make_video(trajectory, options, path=None):
     filenames = []
     if not os.path.exists("gif"):
         os.makedirs("gif")
-    t = str(time.time())
-    gif_path = f"gif/{t}"
+    if path is None:
+        t = str(time.time())
+        gif_path = f"gif/{t}"
+    else:
+        gif_path = path
     if not os.path.exists(gif_path):
         os.makedirs(gif_path)
     for i, var in enumerate(trajectory):
-        print(f"Step {i+1}/{len(trajectory)}", flush=True)
-        print(var)
         p, s, _, _, _, _ = var
         try:
             filename = f"{gif_path}/caronhill_{i+1}.png"
@@ -30,8 +31,12 @@ def make_video(trajectory):
     for filename in filenames:
         with Image.open(filename) as img:
             images.append(img.copy())
-    gif_filename = f'{gif_path}/movie.gif'
-    images[0].save(gif_filename, save_all=True, append_images=images[1:], fps = 10, loop=0)
+    if options:
+        alg, traj, stop = options
+        gif_filename = f'{gif_path}/movie_{traj}_{alg}_{stop}.gif'
+    else:
+        gif_filename = f'{gif_path}/movie.gif'
+    images[0].save(gif_filename, save_all=True, append_images=images[1:], fps=10, loop=0)
 
     print("Removing images...")
     for filename in filenames:
