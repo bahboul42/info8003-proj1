@@ -44,7 +44,7 @@ if __name__ == "__main__":
     domain = Domain() # Create the environment
     state = domain.set_state(0, 0) # Sample an initial state
 
-    agent = AcceleratingAgent() # Create the agent
+    agent = MomentumAgent() # Create the agent
     
     n_steps = 3000
     for _ in range(n_steps):

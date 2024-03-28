@@ -144,8 +144,7 @@ class MomentumAgent:
 
         if np.isclose(s, 0, atol=0.01):
             self.direction *= -1
-        # if np.isclose(s, 0) or np.isclose(s, -2):
-        #     self.direction *= -1
+            
         return 4 * self.direction # problem when s = 0
     
 class RandomAgent:
