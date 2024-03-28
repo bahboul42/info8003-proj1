@@ -92,7 +92,7 @@ class Domain:
         return p_next, s_next
 
     def reward(self, p_next, s_next):
-        """Computes the reward based on the next state."""
+        """Computes the reward based on the next sate."""
         if self.rflag: # if the car exceeds the boundaries
             return 0
         
@@ -108,6 +108,7 @@ class Domain:
     def step(self, action, update=True):
         """Takes a step in the environment."""
         p, s = self.get_state()
+        p_next, s_next = self.dynamics(p, s, action)
         for _ in range(int(self.dis_time_step / self.int_time_step)): # Discretization
             p_next, s_next = self.dynamics(p, s, action)
             self.set_state(p_next, s_next)
