@@ -109,9 +109,9 @@ class Domain:
         """Takes a step in the environment."""
         p, s = self.get_state()
         p_next, s_next = self.dynamics(p, s, action)
-        for _ in range(int(self.dis_time_step / self.int_time_step)): # Discretization
-            p_next, s_next = self.dynamics(p, s, action)
-            self.set_state(p_next, s_next)
+        for _ in range(int(self.dis_time_step / self.int_time_step) - 1): # Discretization
+            p_next, s_next = self.dynamics(p_next, s_next, action)
+        self.set_state(p_next, s_next)
         r = self.reward(p_next, s_next)
         if update:
             self.update_trajectory((p, s), action, r, (p_next, s_next))
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     # agent = AcceleratingAgent()
 
     # Simulate the system
-    n_steps = 3000
+    n_steps = 200
     for _ in range(n_steps):
         state = domain.get_state()
         action = agent.get_action(state)
