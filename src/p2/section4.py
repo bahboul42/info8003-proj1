@@ -7,10 +7,16 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from section3 import make_video
 import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
+
 from itertools import product
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 ## TO DELETE
 from tqdm import tqdm
-import pandas as pd
 
 # 1. 1-step transitions
 # 2. Create an input/output set with 1 step transitions and fitted q from last horizon
@@ -26,9 +32,9 @@ def fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
 
     elif alg == 'trees':
         model = ExtraTreesRegressor(n_estimators=50, min_samples_leaf=2, random_state=42)
-        # parameters chosen based on paper. note: they say k = input size, which is default I think : yes
+        # parameters chosen based on paper.
     elif alg == 'nn':
-        return nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0)
+        return nn_fitted_q_iteration(domain, alg, 200, transitions, stopping=stopping)
     else :
         raise ValueError("Invalid algorithm for learning.")
     
@@ -47,9 +53,89 @@ def fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
             break
         
     return model, error
+    
+class QNetwork(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(QNetwork, self).__init__()
+        self.network = nn.Sequential(
+            nn.Linear(input_size, 8),
+            nn.Tanh(),
+            nn.Linear(8, 16),
+            nn.Tanh(),
+            nn.Linear(16, 32),
+            nn.Tanh(),
+            nn.Linear(32, 64),
+            nn.Tanh(),
+            nn.Linear(64, 32),
+            nn.Tanh(),
+            nn.Linear(32, 16),
+            nn.Tanh(),
+            nn.Linear(16, 8),
+            nn.Tanh(),
+            nn.Linear(8, output_size),
+        )
+        
+    def forward(self, x):
+        return self.network(x)
 
-def nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
-    pass
+def nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0, batch_size=256):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    X, y, z = transitions
+    X = torch.tensor(X, dtype=torch.float32).to(device)
+    y = torch.tensor(y, dtype=torch.float32).view(-1, 1).to(device)
+    z_pos = torch.tensor(np.hstack((z, np.full((z.shape[0], 1), 4))), dtype=torch.float32).to(device)
+    z_neg = torch.tensor(np.hstack((z, np.full((z.shape[0], 1), -4))), dtype=torch.float32).to(device)
+
+    # Creating a dataset and dataloader for mini-batch training
+    dataset = TensorDataset(X, y, z_pos, z_neg)
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    model = QNetwork(input_size=X.shape[1], output_size=1).to(device)
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    
+    error = []
+
+    model.train()
+    
+    for X_batch, y_batch, z_pos_batch, z_neg_batch in dataloader:
+        X_batch, y_batch, z_pos_batch, z_neg_batch =  X_batch.to(device), \
+            y_batch.to(device), z_pos_batch.to(device), z_neg_batch.to(device)
+        
+        optimizer.zero_grad()
+        concat = torch.max(model(z_pos_batch), model(z_neg_batch))
+        l_pred = model(X_batch)
+        loss = criterion(l_pred, y_batch)
+        loss.backward()
+        optimizer.step()
+    
+
+    for _ in tqdm(range(n_q-1)):
+        with torch.no_grad():
+            l_pred = model(X)
+        for X_batch, y_batch, z_pos_batch, z_neg_batch in dataloader:
+            X_batch, y_batch, z_pos_batch, z_neg_batch =  X_batch.to(device), \
+                y_batch.to(device), z_pos_batch.to(device), z_neg_batch.to(device)
+            
+            optimizer.zero_grad()
+            concat = torch.max(model(z_pos_batch), model(z_neg_batch))
+            out = y_batch + domain.discount * concat
+            l_pred_batch = model(X_batch)
+            loss = criterion(l_pred_batch, out)
+            loss.backward()
+            optimizer.step()
+        
+        with torch.no_grad():
+            r_pred = model(X)
+            e = criterion(l_pred, r_pred).cpu().detach().numpy()  # Consider revising for batch logic
+            error.append(e)
+            print(f"error : {e:.5f}")
+            if stopping and e < 6e-4:
+                break
+                
+    return model, error
 
 def mse(old_pred, new_pred):
     ''' Computes MSE between Q_N and Q_(N-1) '''
@@ -106,12 +192,17 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
         raise ValueError("Invalid mode for generating dataset.")
 
 
-def q_eval(p, s, a, model):
-    # Reformatted to create a 2D array suitable for model.predict
-    # Stack p, s, and a arrays along the last axis and reshape into (-1, 3) for model input
-    psa = np.stack((p, s, np.full(p.shape, a)), axis=-1).reshape(-1, 3)
-    # print(psa)
-    return model.predict(psa)
+def q_eval(p, s, a, model, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+
+    if isinstance(model, torch.nn.Module):
+        psa = np.stack((p, s, np.full(p.shape, a)), axis=-1).reshape(-1, 3)
+        psa_tensor = torch.tensor(psa, dtype=torch.float32).to(device)
+        model.eval()  # Set the model to evaluation mode
+        with torch.no_grad():  # Temporarily set all the requires_grad flag to false
+            output = model(psa_tensor)
+        return output.cpu().numpy()
+    else:
+        return model.predict(psa)
 
 def plot_q(model, res, options, path = "../../figures/project2/section4"):
     '''Plot the estimation of Q_N'''
@@ -142,11 +233,15 @@ class OptimalAgent: # do we need another agent specifically for NN or is that ok
     def __init__(self, model, alg):
         self.model = model
         self.alg = alg # specifies which learning algorithm was used
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def get_action(self, state):
         p, s = state
         if self.alg == 'nn':
-            return 0 # what do we do in neural net case
+            if model(torch.tensor([p, s, 4], dtype=torch.float32).to(self.device)) > model(torch.tensor([p, s, -4], dtype=torch.float32).to(self.device)):
+                return 4
+            else:
+                return -4
         else:
             if model.predict(np.array([(p,s,4)])) > model.predict(np.array([(p,s,-4)])):
                 return 4
@@ -169,8 +264,8 @@ def plot_policy(model, res, options, path="../../figures/project2/section4"):
     values_grid_1 = values_grid_1.reshape((len(p_values)*len(s_values), 3))
     values_grid_2 = values_grid_2.reshape((len(p_values)*len(s_values), 3))
     
-    pred_1 = model.predict(values_grid_1)
-    pred_2 = model.predict(values_grid_2)
+    pred_1 = model.predict(values_grid_1) if alg != 'nn' else model(torch.tensor(values_grid_1, dtype=torch.float32).to(device)).cpu().detach().numpy()
+    pred_2 = model.predict(values_grid_2) if alg != 'nn' else model(torch.tensor(values_grid_2, dtype=torch.float32).to(device)).cpu().detach().numpy()
     
     pred_1 = pred_1.reshape(len(p_values),len(s_values))
     pred_2 = pred_2.reshape(len(p_values),len(s_values))
@@ -213,20 +308,21 @@ def plot_e(traj, alg, stop, error, path="../../figures/project2/section4"):
     plt.close()
 
 if __name__ == "__main__":
-    np.random.seed(0)
     domain = Domain()
 
-    # all_traj = ['randn', 'episodic']
-    all_traj = ['randn']
-    all_alg = ['linear', 'trees']
-    all_stop = [0, 1]
+    all_traj = ['randn', 'episodic']
+    all_alg = ['linear', 'trees', 'nn']
+    # all_alg = ['nn']
+    all_stop = [1, 0]
     all_res = [.01]
 
     evol_avg_return = {}
 
     print('Starting section 4...')
     for traj in all_traj:
-        iters = 10000 if traj == 'randn' else 1000
+        iters = 100000 if traj == 'randn' else 1000
+        # iters = 10000 if traj == 'randn' else 10 # TO TEST
+
         print(f'Fetching {traj} set...')
         X, y, z = get_set(mode=traj, n_iter=int(iters))
         for alg, stop, res in product(all_alg, all_stop, all_res):
@@ -239,15 +335,20 @@ if __name__ == "__main__":
             model, error = fitted_q_iteration(domain, alg, N, (X, y, z), stopping=stop)
 
             print("Plotting...")
-            plot_e(traj, alg, stop, error, path='figures/section4/error')
-            plot_q(model, res, options=options, path='figures/section4/qfuncs')
-            plot_policy(model, res, options=options, path='figures/section4/policies')
+            plot_e(traj, alg, stop, error, path='figures/section4/error/')
+            plot_q(model, res, options=options, path='figures/section4/qfuncs/')
+            plot_policy(model, res, options=options, path='figures/section4/policies/')
 
             opt_agent = OptimalAgent(model, alg=alg)
 
             domain.reset()
             r = 0
+            i = 0
             while r == 0:
+                i += 1
+                if i > 2000:
+                    print('Infinite loop detected. Stopping simulation.')
+                    break
                 state = domain.get_state()
                 action = opt_agent.get_action(state)
                 _, _, r, _ = domain.step(action)
@@ -268,5 +369,20 @@ if __name__ == "__main__":
 
             print(f'Estimated expected return of policy {options}: {np.mean(all_returns[:,-1])}') # Print the average so that we also have it numerically
     
-    policy_est.plot_mean_returns(evol_avg_return, filename="_FINAL", path="figures/section4/ereturns")
+    plt.figure(figsize=(10, 6))
+
+    for options, returns in evol_avg_return.items():
+        N = returns.shape[1]  # Horizon length
+        mean_returns = np.mean(returns, axis=0)  # Mean over simulations
+        plt.plot(range(1, N + 1), mean_returns, label=f'Options: {options}')
+
+    # plt.title("Convergence of mean expected return against N")
+    plt.xlabel('N')
+    plt.ylabel('Mean expected return')
+    plt.xlim((1, N + 1))
+    plt.legend()
+    plt.grid(True, which="both", ls="--")
+
+    plt.savefig('figures/section4/ereturns/mean_exp_return_FINAL.png')
+    plt.close()
 
