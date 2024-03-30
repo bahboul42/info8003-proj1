@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from section1 import Domain
 from section1 import *
 
 class PolicyEstimator:
@@ -10,11 +9,11 @@ class PolicyEstimator:
 
     def policy_return(self, N, n_initials):
         '''Derive the estimated expected returns for horizon up to N, using n_initials starting states'''
-        est_return = np.zeros((n_initials, N))
+        est_return = np.zeros((n_initials, N)) # To store expected returns
 
         for i in range(n_initials):
             self.domain.reset() # Reset the domain
-            cum_reward = 0
+            cum_reward = 0 # Cumulative reward
 
             for j in range(N):
                 state = self.domain.get_state() # Current state
@@ -28,8 +27,8 @@ class PolicyEstimator:
     def plot_return(self, all_returns, filename = "", path="../../figures/project2/section2"):
         """Plot the evolution of the estimated expected return against horizon N."""
         
-        n_initials = all_returns.shape[0]
-        N = all_returns.shape[1]
+        n_initials = all_returns.shape[0] # The number of starting states used for simulation
+        N = all_returns.shape[1] # Maximum horizon
 
         plt.figure(figsize=(10, 6))
         for i in range(n_initials):
@@ -52,8 +51,6 @@ if __name__ == "__main__":
     domain.sample_initial_state() # Sample an initial state
 
     agent = MomentumAgent() # Create the agent
-    # agent = AcceleratingAgent()
-    # agent = RandomAgent()
     policy_est = PolicyEstimator(domain, agent)
 
     n_initials = 50 # Number of initial states
@@ -64,8 +61,8 @@ if __name__ == "__main__":
     policy_est.plot_return(all_returns) # Plot the returns for the 50 initial states
 
     # Inspecting the final expected return of all trajectories to know in more detail
-    count_pos = 0
-    count_neg = 0
+    count_pos = 0 # Number of times the expected return is positive
+    count_neg = 0 # Number of times the expected return is negative
     for i in range(n_initials):
         if all_returns[i, -1] > 0:
             count_pos += 1
