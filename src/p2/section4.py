@@ -22,6 +22,7 @@ from tqdm import tqdm
 # 2. Create an input/output set with 1 step transitions and fitted q from last horizon
 # 3. Train a model on the input/output set
 def fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
+    ''' Performs Fitted Q Iteration on the given domain and transitions with sklearn. '''
     X, y, z = transitions # X -> (p, s, a), y -> r, z -> (p_prime, s_prime)
     z_pos = np.hstack((z, np.full((z.shape[0], 1), 4)))
     z_neg = np.hstack((z, np.full((z.shape[0], 1), -4)))
@@ -55,6 +56,7 @@ def fitted_q_iteration(domain, alg, n_q, transitions, stopping=0):
     return model, error
     
 class QNetwork(nn.Module):
+    ''' Neural network for Q-learning '''
     def __init__(self, input_size, output_size):
         super(QNetwork, self).__init__()
         self.network = nn.Sequential(
@@ -81,6 +83,7 @@ class QNetwork(nn.Module):
         return self.network(x)
 
 def nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0, batch_size=256):
+    ''' Performs Fitted Q Iteration on the given domain and transitions with a neural network. '''
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -155,6 +158,7 @@ def sample_state(strategy="uniform"):
         raise ValueError("Invalid strategy for sampling p.")
 
 def traj_step(domain=Domain(), strategy='uniform', X=[], y=[], z=[]):
+    ''' Generate a trajectory step and append it to the dataset using a given strategy.'''
     p, s = sample_state()
 
     domain.reset()
@@ -168,6 +172,8 @@ def traj_step(domain=Domain(), strategy='uniform', X=[], y=[], z=[]):
     return X, y, z
 
 def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
+    ''' Generate a dataset of transitions using a given mode. 
+    mode: 'randn' for random sampling, 'episodic' for episodic sampling (further explained in the report).'''
     domain.sample_initial_state()
     if mode == 'randn':
         X, y, z = traj_step(domain=domain)
@@ -194,6 +200,7 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
 
 
 def q_eval(p, s, a, model, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    ''' Evaluate the Q function for a given state-action pair using a given model.'''
     psa = np.stack((p, s, np.full(p.shape, a)), axis=-1).reshape(-1, 3)
 
     if isinstance(model, torch.nn.Module):
@@ -230,7 +237,8 @@ def plot_q(model, res, options, path = "../../figures/project2/section4"):
         plt.savefig(path+f'/Q_N_action_{a}_{options}.png')   # Save the plot
         plt.close()
 
-class OptimalAgent: # do we need another agent specifically for NN or is that ok?
+class OptimalAgent:
+    ''' Agent that selects the optimal action based on a given model. '''
     def __init__(self, model, alg):
         self.model = model
         self.alg = alg # specifies which learning algorithm was used
@@ -299,6 +307,7 @@ def plot_policy(model, res, options, path="../../figures/project2/section4"):
     print('policy plotted')
 
 def plot_e(traj, alg, stop, error, path="../../figures/project2/section4"):
+    '''Plot the evolution of the MSE between Q_N and Q_(N-1)'''
     plt.figure(figsize=(10, 6))
     plt.plot(np.arange(len(error)), error)
     # plt.title('MSE between Q_N and Q_(N-1)')
@@ -309,6 +318,9 @@ def plot_e(traj, alg, stop, error, path="../../figures/project2/section4"):
     plt.close()
 
 if __name__ == "__main__":
+    ''' In this main, we will run the experiments for section 4.
+    We will consider the different trajectories and algorithms and stopping criteria.
+    We will also plot the Q functions and policies for each model obtained as well as the evolution of the MSE and gif of the trajectory.'''
     domain = Domain()
 
     all_traj = ['randn', 'episodic']
