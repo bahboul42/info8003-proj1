@@ -7,7 +7,8 @@ import numpy as np
 from PIL import Image
 
 def make_video(trajectory, options, path=None):
-    filenames = []
+    '''Create a GIF from a trajectory'''
+    filenames = [] # Generate all images and store them in a directory
     if not os.path.exists("gif"):
         os.makedirs("gif")
     if path is None:
@@ -18,15 +19,15 @@ def make_video(trajectory, options, path=None):
     if not os.path.exists(gif_path):
         os.makedirs(gif_path)
     for i, var in enumerate(trajectory):
-        p, s, _, _, _, _ = var
+        p, s, _, _, _, _ = var # Extract position and speed
         try:
             filename = f"{gif_path}/caronhill_{i+1}.png"
             filenames.append(filename)
-            save_caronthehill_image(p, s, out_file=filename)  
+            save_caronthehill_image(p, s, out_file=filename) # Save image
         except KeyboardInterrupt:
             break
 
-    print("Creating gif...")
+    print("Creating gif...") # Generate the GIF from all the images
     images = []
     for filename in filenames:
         with Image.open(filename) as img:
@@ -38,7 +39,7 @@ def make_video(trajectory, options, path=None):
         gif_filename = f'{gif_path}/movie.gif'
     images[0].save(gif_filename, save_all=True, append_images=images[1:], fps=10, loop=0)
 
-    print("Removing images...")
+    print("Removing images...") # Delete the images once GIF saved
     for filename in filenames:
         os.remove(filename)
 
@@ -51,17 +52,17 @@ if __name__ == "__main__":
 
     agent = MomentumAgent() # Create the agent
     
-    n_steps = 500
+    n_steps = 500 # Maximum number of steps we simulate
     for _ in range(n_steps):
         state = domain.get_state()
         action = agent.get_action(state)
         _, _, r, _ = domain.step(action)
 
-        if r != 0: # we stop simulating if a terminal state is reached
+        if r != 0: # Stop simulating if terminal state is reached
             break
 
-    traj = domain.get_trajectory()
+    traj = domain.get_trajectory() # Extract the trajectory
     p = [x[0] for x in traj]
     s = [x[1] for x in traj]
 
-    make_video(traj)
+    make_video(traj) # Create the gif
