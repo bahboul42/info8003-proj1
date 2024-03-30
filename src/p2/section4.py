@@ -66,6 +66,8 @@ class QNetwork(nn.Module):
             nn.Tanh(),
             nn.Linear(32, 64),
             nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
             nn.Linear(64, 32),
             nn.Tanh(),
             nn.Linear(32, 16),
@@ -131,8 +133,7 @@ def nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0, batch_size=
             r_pred = model(X)
             e = criterion(l_pred, r_pred).cpu().detach().numpy()  # Consider revising for batch logic
             error.append(e)
-            print(f"error : {e:.5f}")
-            if stopping and e < 6e-4:
+            if stopping and e < 3e-4:
                 break
                 
     return model, error
@@ -193,9 +194,9 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
 
 
 def q_eval(p, s, a, model, device=torch.device("cuda" if torch.cuda.is_available() else "cpu")):
+    psa = np.stack((p, s, np.full(p.shape, a)), axis=-1).reshape(-1, 3)
 
     if isinstance(model, torch.nn.Module):
-        psa = np.stack((p, s, np.full(p.shape, a)), axis=-1).reshape(-1, 3)
         psa_tensor = torch.tensor(psa, dtype=torch.float32).to(device)
         model.eval()  # Set the model to evaluation mode
         with torch.no_grad():  # Temporarily set all the requires_grad flag to false
