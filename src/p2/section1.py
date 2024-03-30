@@ -12,7 +12,7 @@ class Domain:
         self.rflag = False  # Flag for the reward function
 
         self.p = None  # Position
-        self.s = None
+        self.s = None  # Speed
 
         self.trajectory = []  # Trajectory of states and actions
 
@@ -60,7 +60,7 @@ class Domain:
         return self.trajectory
     
     def hill(self, p, derivative=0):
-        """Defines the Hill function based on the position p."""
+        """Computes the Hill function (and its first two derivatives) based on the position p."""
         if derivative not in [0, 1, 2]:
             raise ValueError("Invalid derivative order.")
         
@@ -74,7 +74,7 @@ class Domain:
                 return 2*p + 1
             else:
                 return 1/((5*p**2+1)**(3/2))
-        else :
+        else:
             if p < 0:
                 return 2
             else:
@@ -82,7 +82,7 @@ class Domain:
             
     def dynamics(self, p, s, u):
         """Computes the next state given the current state and action using Euler's method."""
-        if self.rflag:
+        if self.rflag: # If terminal state already reached, nothing happens
             return p, s
         dp = s
         ds = (u / (self.m*(1 + self.hill(p, 1)**2))) - ((self.g * self.hill(p, 1)) / (1 + self.hill(p, 1)**2))\
@@ -93,13 +93,13 @@ class Domain:
 
     def reward(self, p_next, s_next):
         """Computes the reward based on the next sate."""
-        if self.rflag: # if the car exceeds the boundaries
+        if self.rflag: # Already in a terminal state
             return 0
         
-        if p_next < -1 or abs(s_next) > 3:
+        if p_next < -1 or abs(s_next) > 3: # Losing state reached
             self.rflag = True
             return -1
-        elif p_next > 1 and abs(s_next) <= 3:
+        elif p_next > 1 and abs(s_next) <= 3: # Winning state reached
             self.rflag = True
             return 1
         else:
@@ -129,6 +129,7 @@ class Domain:
                 print(f"Step ({i+1}/{l_traj} : {p}, {s}), {a}, {r}, ({p_prime}, {s_prime})", flush=True)
 
 class AcceleratingAgent:
+    '''Agent that always accelerates'''
     def __init__(self):
         pass
 
@@ -136,6 +137,7 @@ class AcceleratingAgent:
         return 4
 
 class MomentumAgent:
+    '''Agent that changes direction when its speed gets close to 0'''
     def __init__(self):
         self.direction = -1
 
@@ -145,14 +147,15 @@ class MomentumAgent:
         if np.isclose(s, 0, atol=0.01):
             self.direction *= -1
             
-        return 4 * self.direction # problem when s = 0
+        return 4 * self.direction
     
 class RandomAgent:
+    '''Agent that randomly chooses its actions'''
     def __init__(self):
         pass
 
     def get_action(self, state):
-        return np.random.choice([4, -4])
+        return np.random.choice(self.action_space)
 
 if __name__ == "__main__":
 
@@ -160,16 +163,15 @@ if __name__ == "__main__":
     domain.sample_initial_state() # Sample an initial state
     
     agent = MomentumAgent() # Create the agent
-    # agent = AcceleratingAgent()
 
     # Simulate the system
-    n_steps = 500
+    n_steps = 500 # Maximum number of steps we simulate
     for _ in range(n_steps):
         state = domain.get_state()
         action = agent.get_action(state)
         _, _, r, _ = domain.step(action)
 
-        if r != 0: # we stop simulating if a terminal state is reached
+        if r != 0: # Stop simulating if a terminal state is reached
             break
 
     domain.print_trajectory(mod=1)

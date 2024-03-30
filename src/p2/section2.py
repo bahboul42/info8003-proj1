@@ -8,7 +8,7 @@ class PolicyEstimator:
         self.agent = agent
 
     def policy_return(self, N, n_initials):
-        '''Derive the estimated expected returns for horizon up to N, using n_initials starting states'''
+        '''Derive the estimated expected returns for horizon up to N, using n_initials starting states.'''
         est_return = np.zeros((n_initials, N)) # To store expected returns
 
         for i in range(n_initials):
