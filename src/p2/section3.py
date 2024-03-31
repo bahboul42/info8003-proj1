@@ -65,4 +65,4 @@ if __name__ == "__main__":
     p = [x[0] for x in traj]
     s = [x[1] for x in traj]
 
-    make_video(traj) # Create the gif
+    make_video(traj, options = 0) # Create the gif
