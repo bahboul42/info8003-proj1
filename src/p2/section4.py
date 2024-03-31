@@ -14,8 +14,6 @@ from torch.utils.data import TensorDataset, DataLoader
 
 from itertools import product
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-## TO DELETE
 from tqdm import tqdm
 
 # 1. 1-step transitions
@@ -80,7 +78,7 @@ class QNetwork(nn.Module):
         )
         
     def forward(self, x):
-        return self.network(x)
+        return self.network(x) 
 
 def nn_fitted_q_iteration(domain, alg, n_q, transitions, stopping=0, batch_size=256):
     ''' Performs Fitted Q Iteration on the given domain and transitions with a neural network. '''
@@ -185,7 +183,7 @@ def get_set(domain=Domain(), mode='randn', n_iter=int(1e4)):
         X, y, z = [], [], []
         for _ in tqdm(range(n_episodes)):
             r = 0
-            domain.set_state(-.5, 0)
+            domain.sample_initial_state()
             while r == 0:
                 (p, s), a, r, (p_next, s_next) = domain.step(np.random.choice([4, -4]), update=False)
                 X.append((p, s, a))
@@ -297,11 +295,9 @@ def plot_policy(model, res, options, path="../../figures/project2/section4"):
 
     plt.legend()
 
-    # plt.title(f'Optimal policy for {options}')
 
-    plt.grid(True) # Not sure the grid makes sense
+    plt.grid(True)
     
-    # options should be more specific: learning algorithm, stopping criterion, trajectory used    
     plt.savefig(path+f'/est_opt_policy_{options}.png') 
     plt.close()
     print('policy plotted')
@@ -325,7 +321,6 @@ if __name__ == "__main__":
 
     all_traj = ['randn', 'episodic']
     all_alg = ['linear', 'trees', 'nn']
-    # all_alg = ['nn']
     all_stop = [1, 0]
     all_res = [.01]
 
@@ -372,9 +367,6 @@ if __name__ == "__main__":
             n_initials = 50 
             N = 300 
             print(f"Applying monte carlo for Expected return {n_initials} times with horizon {N}...")
-            # In this case, wouldn't it be more interesting to have a single plot with the 
-            # estimated expected return (averaged over all initial states basically) of all models obtained?
-
             all_returns = policy_est.policy_return(N, n_initials) # Get all the estimated expected returns
             policy_est.plot_return(all_returns, filename="_"+alg+traj+str(stop), path="figures/section4/ereturns") # Plot the returns for the 50 initial states
 
@@ -382,14 +374,13 @@ if __name__ == "__main__":
 
             print(f'Estimated expected return of policy {options}: {np.mean(all_returns[:,-1])}') # Print the average so that we also have it numerically
     
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(20, 12  ))
 
     for options, returns in evol_avg_return.items():
         N = returns.shape[1]  # Horizon length
         mean_returns = np.mean(returns, axis=0)  # Mean over simulations
         plt.plot(range(1, N + 1), mean_returns, label=f'Options: {options}')
 
-    # plt.title("Convergence of mean expected return against N")
     plt.xlabel('N')
     plt.ylabel('Mean expected return')
     plt.xlim((1, N + 1))
