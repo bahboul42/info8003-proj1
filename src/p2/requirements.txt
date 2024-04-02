@@ -3,3 +3,6 @@ torch
 matplotlib
 scikit-learn
 tqdm
+PIL
+pygame
+
