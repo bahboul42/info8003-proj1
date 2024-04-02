@@ -8,8 +8,10 @@ import numpy as np
 from section1 import *
 from tqdm import tqdm
 from section3 import make_video
-from section4 import plot_q, plot_policy
+from section4 import plot_q, plot_policy, get_set, fitted_q_iteration, OptimalAgent
 from copy import deepcopy
+from section2 import PolicyEstimator
+import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -52,7 +54,7 @@ class EpsilonGreedyPolicy:
         decay_factor = (self.end_epsilon / self.start_epsilon) ** (1 / total_epochs)
         self.epsilon = max(self.start_epsilon * (decay_factor ** epoch), self.end_epsilon)
             
-class OptimalAgent:
+class NnOptimalAgent:
     ''' Agent that selects the optimal action based on a given model. '''
     def __init__(self, model):
         self.model = model
@@ -106,7 +108,7 @@ class ReplayBuffer(Dataset):
 
 
 
-def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_layers=[8, 16, 32, 16, 8], batch_size=8, buffer_size=100000, target_update_rate=1000):
+def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_layers=[8, 16, 32, 16, 8], batch_size=8, buffer_size=100000, target_update_rate=1000, exp_every=500):
     print(f"Using device: {device}")
     domain.reset()
 
@@ -120,6 +122,8 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
     optimizer = optim.AdamW(model.parameters(), lr=3e-4)
     replay_buffer = ReplayBuffer(buffer_size)
 
+    exp_returns = np.zeros((2, num_epochs // exp_every)) # To store the expected returns
+    
     model.train()
 
     for epoch in tqdm(range(num_epochs)):
@@ -178,6 +182,18 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
             # Perform backpropagation and an optimization step
             loss.backward()
             optimizer.step()
+
+            # Estimating the expected return
+            if epoch % exp_every == 0:
+                opt_agent = NnOptimalAgent(model)
+                domain_empty = Domain() # Need another domain so that it doesn't affect domain used by PQL
+                policy_est = PolicyEstimator(domain_empty, opt_agent) # Initialize policy estimator
+                print("Estimating the expected return...")
+                all_returns = policy_est.policy_return(300, 50) # Should we define these as function args?
+                print("Done!")
+                exp_returns[0, epoch // exp_every] = epoch # Store the number of transitions
+                exp_returns[1, epoch // exp_every] = np.mean(all_returns[:-1]) # Store the estimated expected return
+
             if epoch % 1000 == 0:
                 print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}", flush=True)
                 print(f"The buffer is made up of {replay_buffer.counter} samples and of 1:{replay_buffer.rew}, -1:{replay_buffer.rew2}", flush=True)
@@ -187,7 +203,49 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
             break
     # save the model
     torch.save(model.state_dict(), "q_network.pth")  
-    return model
+    return model, exp_returns
+
+def evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_initials, max_h):
+    '''Derive the evolution of expected return for Fitted-Q-Iteration'''
+
+    exp_returns = np.zeros((2, max_episodes // episodes_incr)) # To store the expected returns
+    print("Starting to derive the expected returns...")
+    for i in range(1, (max_episodes // episodes_incr) + 1):
+        n_episodes = i * episodes_incr # Might need to be changed to n_transitions if we use uniform sampling
+
+        X, y, z = get_set(mode=traj, n_iter=n_episodes) # Generate the transitions
+
+        exp_returns[0, i-1] = X.shape[0] # Store the number of transitions
+
+        model, _ = fitted_q_iteration(domain, alg, N, (X, y, z), stopping=stop) # Fitted-Q-Iteration
+
+        opt_agent = OptimalAgent(model, alg=alg) #Create optimal agent from resulting model
+
+        domain.reset() # Reset the domain
+
+        # Estimate the expected return
+        policy_est = PolicyEstimator(domain, opt_agent) # Initialize policy estimator
+        
+        all_returns = policy_est.policy_return(max_h, n_initials) # Compute expected return
+
+        exp_returns[1, i-1] = np.mean(all_returns[:-1]) # Store the estimated expected return
+    
+    print("Computed all expected returns")
+    
+    return exp_returns
+
+def plot_exp(exp_returns_nn, exp_returns_fqi, filename = "", path="../../figures/project2/section5"):
+    """Comparing the evolution of the estimated expected return for FQI and PQL"""
+    plt.figure(figsize=(10, 6))
+    plt.plot(exp_returns_fqi[0,:], exp_returns_fqi[1,:], color = 'red', label = f'Fitted-Q-Iteration')
+    plt.plot(exp_returns_nn[0,:], exp_returns_nn[1,:], color = 'blue', label = f'Parametric Q-learning')
+    plt.title(f"Evolution of expected return against number of transitions")
+    plt.xlabel('Number of transitions')
+    plt.ylabel('Expected return')
+    plt.legend()
+    plt.grid(True, which="both", ls="--")
+    plt.savefig(path+f'/evol_exp_return{filename}.png')
+    plt.close()
 
 if __name__ == "__main__":
     np.random.seed(0)
@@ -201,12 +259,14 @@ if __name__ == "__main__":
     target_update_rate = 1000
     hidden_layers = [8, 16, 32, 16, 8]
 
-    q_network = parametric_q_learning(num_epochs=num_epochs,\
+    exp_every = 5000 # How often we estimate the expected returns for PQL
+
+    q_network, exp_ret_nn = parametric_q_learning(num_epochs=num_epochs,\
              hidden_layers=hidden_layers, batch_size=batch_size, \
-             epsilon=epsilon, buffer_size=buffer_size, target_update_rate=target_update_rate)
+             epsilon=epsilon, buffer_size=buffer_size, target_update_rate=target_update_rate, exp_every = exp_every)
     
     domain = Domain()
-    agent = OptimalAgent(q_network)
+    agent = NnOptimalAgent(q_network)
     domain.sample_initial_state()
 
     i = 0
@@ -227,3 +287,26 @@ if __name__ == "__main__":
     plot_q(model=q_network, res=.01, options=('nn', 'nn', 'test'), path="./figures/section5")
 
     make_video(domain.get_trajectory(), options=('nn', 'nn', 'test'))
+
+    # Deriving the estimation of expected returns
+    domain.reset() # Create the environment
+    domain.sample_initial_state() # Sample an initial state
+
+    traj = "episodic" # Is this better or is uniform better?
+    alg = "trees" # We use extra trees
+    stop = 0 # We don't use early stopping
+    max_episodes = 1000 # Could use max_transitions instead if we use uniform sampling
+    episodes_incr = 100 # By how many episodes we increment at every iteration
+
+    N = 50 # Horizon considered for FQI
+
+    n_initials = 50 # Number of starting states to estimate expected return
+    max_h = 300 # Max horizon to estimated expected return
+
+    # Compute expected returns for FQI
+    exp_ret_fqi = evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_initials, max_h)
+
+    # Obtain the comparison plot
+    plot_exp(exp_ret_nn, exp_ret_fqi)
+
+

@@ -245,12 +245,12 @@ class OptimalAgent:
     def get_action(self, state):
         p, s = state
         if self.alg == 'nn':
-            if model(torch.tensor([p, s, 4], dtype=torch.float32).to(self.device)) > model(torch.tensor([p, s, -4], dtype=torch.float32).to(self.device)):
+            if self.model(torch.tensor([p, s, 4], dtype=torch.float32).to(self.device)) > self.model(torch.tensor([p, s, -4], dtype=torch.float32).to(self.device)):
                 return 4
             else:
                 return -4
         else:
-            if model.predict(np.array([(p,s,4)])) > model.predict(np.array([(p,s,-4)])):
+            if self.model.predict(np.array([(p,s,4)])) > self.model.predict(np.array([(p,s,-4)])):
                 return 4
             else:
                 return -4
