@@ -56,11 +56,10 @@ class OptimalAgent:
     ''' Agent that selects the optimal action based on a given model. '''
     def __init__(self, model):
         self.model = model
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def get_action(self, state):
         p, s = state
-        if self.model(torch.tensor([p, s, 4], dtype=torch.float32).to(self.device)) > self.model(torch.tensor([p, s, -4], dtype=torch.float32).to(self.device)):
+        if self.model(torch.tensor([p, s, 4], dtype=torch.float32).to(device)) > self.model(torch.tensor([p, s, -4], dtype=torch.float32).to(device)):
             return 4
         else:
             return -4
@@ -73,13 +72,9 @@ class ReplayBuffer(Dataset):
         self.rew = 0
         self.rew2 = 0
         self.buffer = torch.empty((capacity, 7), dtype=torch.float32, device=device)
+        self.p_experience = torch.empty((capacity, 1), dtype=torch.float32, device=device)
 
-    def push(self, state, action, reward, next_state):
-        if reward == 1 or reward == -1:
-            done = 1
-        else:
-            done = 0
-        
+    def push(self, state, action, reward, next_state, done, error):
         if reward == 1:
             self.rew += 1
         elif reward == -1:
@@ -88,22 +83,24 @@ class ReplayBuffer(Dataset):
         idx = self.counter % self.capacity
         p, s = state
         p_next, s_next = next_state
-    
+
         self.buffer[idx] = torch.tensor([p, s, action, reward, p_next, s_next, done], dtype=torch.float32, device=device)
-        if self.counter < self.capacity:
-            self.counter += 1
+        self.p_experience[idx] = torch.tensor([error], dtype=torch.float32, device=device)
+        print(self.p_experience[idx])
+        self.counter += 1
+        # remove overflow of the counter
+        if self.counter > self.capacity:
+            self.counter = self.counter % self.capacity
 
     def sample(self, batch_size):
         idxs = torch.randint(0, min(self.counter, self.capacity), size=(batch_size,), device=device)
         return self.buffer[idxs]
 
-    
     def __len__(self):
         return min(self.counter, self.capacity)
 
     def __getitem__(self, idx):
         return self.buffer[idx]
-
 
 
 def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_layers=[8, 16, 32, 16, 8], batch_size=8, buffer_size=100000, target_update_rate=1000):
@@ -124,17 +121,40 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
 
     for epoch in tqdm(range(num_epochs)):
         try:
-            state = domain.get_state()
-            action = agent.get_action(state)
-            agent.update_epsilon(epoch, num_epochs)
-            (p, s), a, r, (p_next, s_next) = domain.step(action, update=False)
-            replay_buffer.push((p, s), a, r, (p_next, s_next))
-            
-            if r == 1 or r == -1:
-                domain.reset()
 
-            if replay_buffer.counter < batch_size:
-                continue
+            with torch.no_grad():
+                state = domain.get_state()
+                action = agent.get_action(state)
+                agent.update_epsilon(epoch, num_epochs)
+                (p, s), a, r, (p_next, s_next) = domain.step(action, update=False)
+
+                if r == 1 or r == -1:
+                    done = 1
+                    domain.reset()
+                else:
+                    done = 0
+
+                X = torch.tensor([p, s, a], dtype=torch.float32).to(device)
+                y = torch.tensor([r], dtype=torch.float32).to(device)
+
+                done = torch.tensor([done], dtype=torch.float32).to(device)
+
+                future_q_values_pos = target_model(torch.tensor([p_next, s_next, 4], dtype=torch.float32, device=device)).unsqueeze(0)
+                future_q_values_neg = target_model(torch.tensor([p_next, s_next, -4], dtype=torch.float32, device=device)).unsqueeze(0)
+
+                # Take the max future Q value among the possible actions
+                max_future_q_values, _ = torch.max(torch.cat((future_q_values_pos, future_q_values_neg), dim=1)\
+                                            , dim=1, keepdim=True)
+                
+                # Compute Q targets for current states            
+                expected_q_values = y + (1 - done) * domain.discount * max_future_q_values
+                error = criterion(model(X), expected_q_values).detach()
+
+                replay_buffer.push((p, s), a, r, (p_next, s_next), done, error)
+            
+
+                if replay_buffer.counter < batch_size:
+                    continue
             
             if epoch % target_update_rate == 0:
                 target_model.load_state_dict(model.state_dict())
@@ -196,10 +216,10 @@ if __name__ == "__main__":
 
     batch_size = 8
     epsilon = [1, .1, .5]
-    buffer_size = 100000
+    buffer_size = 10000
     num_epochs = 100000
     target_update_rate = 1000
-    hidden_layers = [8, 16, 32, 16, 8]
+    hidden_layers = [16, 32, 64, 32, 16, 8, 4, 2]
 
     q_network = parametric_q_learning(num_epochs=num_epochs,\
              hidden_layers=hidden_layers, batch_size=batch_size, \
