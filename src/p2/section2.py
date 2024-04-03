@@ -20,7 +20,9 @@ class PolicyEstimator:
                 action = self.agent.get_action(state) # Action chosen by policy for current state
                 _, _, r, _ = self.domain.step(action) # Move system one step forward and store the reward
                 cum_reward += (self.domain.discount ** j) * r # Update cumulative reward
-                est_return[i, j] = cum_reward # Store current cumulative reward
+                if r != 0:
+                    est_return[i, j:] = cum_reward # Store current cumulative reward
+                    break
 
         return est_return
     
