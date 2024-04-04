@@ -66,8 +66,6 @@ class QNetwork(nn.Module):
             nn.Tanh(),
             nn.Linear(32, 64),
             nn.Tanh(),
-            nn.Linear(64, 64),
-            nn.Tanh(),
             nn.Linear(64, 32),
             nn.Tanh(),
             nn.Linear(32, 16),

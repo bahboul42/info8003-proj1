@@ -22,7 +22,7 @@ class QNetwork(nn.Module):
         input_dim = input_size
         for hidden_size in hidden_sizes:
             layers.append(nn.Linear(input_dim, hidden_size))
-            layers.append(nn.Tanh())
+            layers.append(nn.Sigmoid())
             input_dim = hidden_size
         layers.append(nn.Linear(hidden_sizes[-1], output_size))
         self.network = nn.Sequential(*layers)
@@ -94,7 +94,6 @@ class ReplayBuffer(Dataset):
         self.counter += 1
         # remove overflow of the counter
         if self.counter >= self.capacity:
-            self.counter = self.counter % self.capacity
             self.full = True
 
     def sample(self, batch_size):
