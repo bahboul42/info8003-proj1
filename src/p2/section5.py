@@ -215,7 +215,7 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
 
             with torch.no_grad():
                 # Estimating the expected return
-                if epoch % exp_every == 0 and epoch != 0:
+                if (epoch+1) % exp_every == 0 and epoch != 0:
                     opt_agent = NnOptimalAgent(model)
                     domain_empty = Domain() # Need another domain so that it doesn't affect domain used by PQL
                     policy_est = PolicyEstimator(domain_empty, opt_agent) # Initialize policy estimator
