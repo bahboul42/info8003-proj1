@@ -126,7 +126,7 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
     optimizer = optim.AdamW(model.parameters(), lr=3e-4)
     replay_buffer = ReplayBuffer(buffer_size)
 
-    exp_returns = np.zeros((2, num_epochs // exp_every)) # To store the expected returns
+    exp_returns = np.zeros((2, 1 + num_epochs // exp_every)) # To store the expected returns
     
     model.train()
 
@@ -215,7 +215,7 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
 
             with torch.no_grad():
                 # Estimating the expected return
-                if epoch % exp_every == 0:
+                if epoch % exp_every == 0 and epoch != 0:
                     opt_agent = NnOptimalAgent(model)
                     domain_empty = Domain() # Need another domain so that it doesn't affect domain used by PQL
                     policy_est = PolicyEstimator(domain_empty, opt_agent) # Initialize policy estimator
@@ -239,14 +239,14 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
 def evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_initials, max_h):
     '''Derive the evolution of expected return for Fitted-Q-Iteration'''
 
-    exp_returns = np.zeros((2, max_episodes // episodes_incr)) # To store the expected returns
+    exp_returns = np.zeros((2, 1 + max_episodes // episodes_incr)) # To store the expected returns
     print("Starting to derive the expected returns...")
     for i in range(1, (max_episodes // episodes_incr) + 1):
         n_episodes = i * episodes_incr # Might need to be changed to n_transitions if we use uniform sampling
 
         X, y, z = get_set(mode=traj, n_iter=n_episodes) # Generate the transitions
 
-        exp_returns[0, i-1] = X.shape[0] # Store the number of transitions
+        exp_returns[0, i] = X.shape[0] # Store the number of transitions
 
         model, _ = fitted_q_iteration(domain, alg, N, (X, y, z), stopping=stop) # Fitted-Q-Iteration
 
@@ -259,19 +259,19 @@ def evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_init
         
         all_returns = policy_est.policy_return(max_h, n_initials) # Compute expected return
 
-        exp_returns[1, i-1] = np.mean(all_returns[:-1]) # Store the estimated expected return
+        exp_returns[1, i] = np.mean(all_returns[:-1]) # Store the estimated expected return
     
     print("Computed all expected returns")
     
     return exp_returns
 
-def plot_exp(exp_returns_nn, exp_returns_fqi, filename = "", path="../../figures/project2/section5"):
+def plot_exp(exp_returns_nn, exp_returns_fqi, N, batch_size, filename = "", path="../../figures/project2/section5"):
     """Comparing the evolution of the estimated expected return for FQI and PQL"""
     plt.figure(figsize=(10, 6))
-    plt.plot(exp_returns_fqi[0,:], exp_returns_fqi[1,:], color = 'red', label = f'Fitted-Q-Iteration')
-    plt.scatter(exp_returns_nn[0,:], exp_returns_nn[1,:], color = 'blue', label = f'Parametric Q-learning')
-    plt.title(f"Evolution of expected return against number of transitions")
-    plt.xlabel('Number of transitions')
+    plt.plot(exp_returns_fqi[0,:]*N, exp_returns_fqi[1,:], color = 'red', label = f'Fitted-Q-Iteration')
+    plt.scatter(exp_returns_nn[0,:]*batch_size, exp_returns_nn[1,:], color = 'blue', label = f'Parametric Q-learning')
+    plt.title(f"Evolution of expected return against effective number of transitions")
+    plt.xlabel('Effective number of transitions')
     plt.ylabel('Expected return')
     plt.legend()
     plt.grid(True, which="both", ls="--")
@@ -281,17 +281,6 @@ def plot_exp(exp_returns_nn, exp_returns_fqi, filename = "", path="../../figures
 if __name__ == "__main__":
     np.random.seed(0)
     torch.manual_seed(0)
-    # FITTED Q-ITERATION PARAMETERS
-    traj = "uni-episodic" # Is this better or is uniform better?
-    alg = "trees" # We use extra trees
-    stop = 0 # We don't use early stopping
-    max_episodes = 1000 # Could use max_transitions instead if we use uniform sampling
-    episodes_incr = 100 # By how many episodes we increment at every iteration
-
-    N = 50 # Horizon considered for FQI
-
-    n_initials = 50 # Number of starting states to estimate expected return
-    max_h = 300 # Max horizon to estimated expected return
 
     # PARAMETRIC Q-LEARNING PARAMETERS
 
@@ -336,10 +325,22 @@ if __name__ == "__main__":
     domain.reset() # Create the environment
     domain.sample_initial_state() # Sample an initial state
 
+    # FITTED Q-ITERATION PARAMETERS
+    traj = "uni-episodic" # Is this better or is uniform better?
+    alg = "trees" # We use extra trees
+    stop = 0 # We don't use early stopping
+    max_episodes = 2000 # Could use max_transitions instead if we use uniform sampling
+    episodes_incr = 200 # By how many episodes we increment at every iteration
+
+    N = 50 # Horizon considered for FQI
+
+    n_initials = 50 # Number of starting states to estimate expected return
+    max_h = 300 # Max horizon to estimated expected return
+
     # Compute expected returns for FQI
     exp_ret_fqi = evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_initials, max_h)
 
     # Obtain the comparison plot
-    plot_exp(exp_ret_nn, exp_ret_fqi, path="./figures/section5")
+    plot_exp(exp_ret_nn, exp_ret_fqi, N, batch_size, path="./figures/section5")
 
 
