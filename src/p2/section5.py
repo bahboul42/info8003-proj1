@@ -22,7 +22,7 @@ class QNetwork(nn.Module):
         input_dim = input_size
         for hidden_size in hidden_sizes:
             layers.append(nn.Linear(input_dim, hidden_size))
-            layers.append(nn.Sigmoid())
+            layers.append(nn.Tanh())
             input_dim = hidden_size
         layers.append(nn.Linear(hidden_sizes[-1], output_size))
         self.network = nn.Sequential(*layers)
