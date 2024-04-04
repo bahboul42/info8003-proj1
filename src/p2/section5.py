@@ -75,6 +75,8 @@ class ReplayBuffer(Dataset):
         self.rew2 = 0
         self.buffer = torch.empty((capacity, 7), dtype=torch.float32, device=device)
         self.p_experience = torch.empty((capacity, 1), dtype=torch.float32, device=device)
+        self.sm = torch.nn.Softmax(dim=0)
+        self.full = False
 
     def push(self, state, action, reward, next_state, done, error):
         if reward == 1:
@@ -88,14 +90,21 @@ class ReplayBuffer(Dataset):
 
         self.buffer[idx] = torch.tensor([p, s, action, reward, p_next, s_next, done], dtype=torch.float32, device=device)
         self.p_experience[idx] = torch.tensor([error], dtype=torch.float32, device=device)
-        print(self.p_experience[idx])
+
         self.counter += 1
         # remove overflow of the counter
-        if self.counter > self.capacity:
+        if self.counter >= self.capacity:
             self.counter = self.counter % self.capacity
+            self.full = True
 
     def sample(self, batch_size):
-        idxs = torch.randint(0, min(self.counter, self.capacity), size=(batch_size,), device=device)
+        # Assuming self.p_experience might be incorrectly shaped
+        if self.full:
+            probs = self.sm(self.p_experience.flatten())
+        else:
+            probs = self.sm(self.p_experience[:self.counter].flatten())
+
+        idxs = torch.multinomial(probs, batch_size, replacement=True).to(device)
         return self.buffer[idxs]
 
     def __len__(self):
@@ -103,8 +112,6 @@ class ReplayBuffer(Dataset):
 
     def __getitem__(self, idx):
         return self.buffer[idx]
-
-
 
 def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_layers=[8, 16, 32, 16, 8], batch_size=8, buffer_size=100000, target_update_rate=1000, exp_every=500):
     print(f"Using device: {device}")
@@ -136,6 +143,9 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
                 if r == 1 or r == -1:
                     done = 1
                     domain.reset()
+                    p_sample = np.random.uniform(-1, 1)
+                    s_sample = 0
+                    domain.set_state(p_sample, s_sample)
                 else:
                     done = 0
 
@@ -144,17 +154,17 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
 
                 done = torch.tensor([done], dtype=torch.float32).to(device)
 
-                future_q_values_pos = target_model(torch.tensor([p_next, s_next, 4], dtype=torch.float32, device=device)).unsqueeze(0)
-                future_q_values_neg = target_model(torch.tensor([p_next, s_next, -4], dtype=torch.float32, device=device)).unsqueeze(0)
+                future_q_values_pos = target_model(torch.tensor([p_next, s_next, 4], dtype=torch.float32, device=device))
+                future_q_values_neg = target_model(torch.tensor([p_next, s_next, -4], dtype=torch.float32, device=device))
 
-                # Take the max future Q value among the possible actions
-                max_future_q_values, _ = torch.max(torch.cat((future_q_values_pos, future_q_values_neg), dim=1)\
-                                            , dim=1, keepdim=True)
-                
-                # Compute Q targets for current states            
+                # Take the max future Q value among the possible actions without keepdim
+                max_future_q_values = torch.max(torch.stack((future_q_values_pos, future_q_values_neg)), dim=0)[0]
+
+                # Since y and done are already 1D, expected_q_values will also be 1D
                 expected_q_values = y + (1 - done) * domain.discount * max_future_q_values
-                error = criterion(model(X), expected_q_values).detach()
 
+                # Now both model(X) and expected_q_values are 1D
+                error = criterion(model(X), expected_q_values)  # Ensure model(X) is also 1D if not
                 replay_buffer.push((p, s), a, r, (p_next, s_next), done, error)
             
 
@@ -204,21 +214,22 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
             loss.backward()
             optimizer.step()
 
-            # Estimating the expected return
-            if epoch % exp_every == 0:
-                opt_agent = NnOptimalAgent(model)
-                domain_empty = Domain() # Need another domain so that it doesn't affect domain used by PQL
-                policy_est = PolicyEstimator(domain_empty, opt_agent) # Initialize policy estimator
-                print("Estimating the expected return...")
-                all_returns = policy_est.policy_return(300, 50) # Should we define these as function args?
-                print("Done!")
-                exp_returns[0, epoch // exp_every] = epoch # Store the number of transitions
-                exp_returns[1, epoch // exp_every] = np.mean(all_returns[:-1]) # Store the estimated expected return
+            with torch.no_grad():
+                # Estimating the expected return
+                if epoch % exp_every == 0:
+                    opt_agent = NnOptimalAgent(model)
+                    domain_empty = Domain() # Need another domain so that it doesn't affect domain used by PQL
+                    policy_est = PolicyEstimator(domain_empty, opt_agent) # Initialize policy estimator
+                    print("Estimating the expected return...")
+                    all_returns = policy_est.policy_return(300, 50) # Should we define these as function args?
+                    print("Done!")
+                    exp_returns[0, epoch // exp_every] = epoch # Store the number of transitions
+                    exp_returns[1, epoch // exp_every] = np.mean(all_returns[:-1]) # Store the estimated expected return
 
-            if epoch % 1000 == 0:
-                print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}", flush=True)
-                print(f"The buffer is made up of {replay_buffer.counter} samples and of 1:{replay_buffer.rew}, -1:{replay_buffer.rew2}", flush=True)
-                print(f"Current epsilon: {agent.epsilon}", flush=True)
+                if epoch % 1000 == 0:
+                    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}", flush=True)
+                    print(f"The buffer is made up of {replay_buffer.counter} samples and of 1:{replay_buffer.rew}, -1:{replay_buffer.rew2}", flush=True)
+                    print(f"Current epsilon: {agent.epsilon}", flush=True)
         except KeyboardInterrupt:
             print("Interrupted, saving model...")
             break
@@ -259,7 +270,7 @@ def plot_exp(exp_returns_nn, exp_returns_fqi, filename = "", path="../../figures
     """Comparing the evolution of the estimated expected return for FQI and PQL"""
     plt.figure(figsize=(10, 6))
     plt.plot(exp_returns_fqi[0,:], exp_returns_fqi[1,:], color = 'red', label = f'Fitted-Q-Iteration')
-    plt.plot(exp_returns_nn[0,:], exp_returns_nn[1,:], color = 'blue', label = f'Parametric Q-learning')
+    plt.scatter(exp_returns_nn[0,:], exp_returns_nn[1,:], color = 'blue', label = f'Parametric Q-learning')
     plt.title(f"Evolution of expected return against number of transitions")
     plt.xlabel('Number of transitions')
     plt.ylabel('Expected return')
@@ -271,14 +282,26 @@ def plot_exp(exp_returns_nn, exp_returns_fqi, filename = "", path="../../figures
 if __name__ == "__main__":
     np.random.seed(0)
     torch.manual_seed(0)
+    # FITTED Q-ITERATION PARAMETERS
+    traj = "uni-episodic" # Is this better or is uniform better?
+    alg = "trees" # We use extra trees
+    stop = 0 # We don't use early stopping
+    max_episodes = 1000 # Could use max_transitions instead if we use uniform sampling
+    episodes_incr = 100 # By how many episodes we increment at every iteration
 
+    N = 50 # Horizon considered for FQI
 
-    batch_size = 8
-    epsilon = [1, .1, .5]
-    buffer_size = 10000
-    num_epochs = 100000
-    target_update_rate = 1000
-    hidden_layers = [8, 16, 32, 16, 8]
+    n_initials = 50 # Number of starting states to estimate expected return
+    max_h = 300 # Max horizon to estimated expected return
+
+    # PARAMETRIC Q-LEARNING PARAMETERS
+
+    batch_size = 4 # Batch size
+    epsilon = [1, .1, .8] # Epsilon greedy parameters : start, end, decay rate
+    buffer_size = 10000 # Size of the replay buffer
+    num_epochs = 400000 # Number of epochs
+    target_update_rate = 1000 # How often we update the target network
+    hidden_layers = [8, 16, 32, 64, 32, 16, 8] # Hidden layers of the neural network
 
     exp_every = 5000 # How often we estimate the expected returns for PQL
 
@@ -309,25 +332,15 @@ if __name__ == "__main__":
 
     make_video(domain.get_trajectory(), options=('nn', 'nn', 'test'))
 
+    #######################
     # Deriving the estimation of expected returns
     domain.reset() # Create the environment
     domain.sample_initial_state() # Sample an initial state
-
-    traj = "episodic" # Is this better or is uniform better?
-    alg = "trees" # We use extra trees
-    stop = 0 # We don't use early stopping
-    max_episodes = 1000 # Could use max_transitions instead if we use uniform sampling
-    episodes_incr = 100 # By how many episodes we increment at every iteration
-
-    N = 50 # Horizon considered for FQI
-
-    n_initials = 50 # Number of starting states to estimate expected return
-    max_h = 300 # Max horizon to estimated expected return
 
     # Compute expected returns for FQI
     exp_ret_fqi = evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_initials, max_h)
 
     # Obtain the comparison plot
-    plot_exp(exp_ret_nn, exp_ret_fqi)
+    plot_exp(exp_ret_nn, exp_ret_fqi, path="./figures/section5")
 
 
