@@ -1,17 +1,17 @@
 from section4 import *
 import numpy as np
 import matplotlib.pyplot as plt
-from section5 import OptimalAgent, QNetwork
+from section5 import NnOptimalAgent, QNetwork
 from section2 import PolicyEstimator
 import torch
 np.random.seed(0)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Path to the saved model weights
-model_path = 'workinnn.pth'
+model_path = 'q_network.pth'
 
 # Instantiate the model
-model = QNetwork(input_size=3, output_size=1, hidden_sizes=[8, 16, 32, 16, 8])
+model = QNetwork(input_size=3, output_size=1, hidden_sizes=[8, 16, 32, 64, 32, 16, 8])
 
 # Load the model weights
 model.load_state_dict(torch.load(model_path, map_location=device))
@@ -21,7 +21,7 @@ model.eval()
 domain = Domain() # Create the environment
 domain.sample_initial_state() # Sample an initial state
 
-agent = OptimalAgent(model) # Create the agent
+agent = NnOptimalAgent(model) # Create the agent
 policy_est = PolicyEstimator(domain, agent)
 
 n_initials = 50 # Number of initial states
@@ -42,7 +42,7 @@ for i in range(n_initials):
 print(f'Number of successful trajectories: {count_pos}')
 print(f'Number of unsuccessful trajectories: {count_neg}')
 
-
+print(np.mean(all_returns[:, -1])) # Mean of the expected returns
 
 
 

@@ -170,7 +170,7 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
                 if replay_buffer.counter < batch_size:
                     continue
             
-            if epoch % target_update_rate == 0:
+            if epoch % target_update_rate == 0 or epoch == num_epochs - 1:
                 target_model.load_state_dict(model.state_dict())
 
             batch = replay_buffer.sample(batch_size)
@@ -222,8 +222,8 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
                     print("Estimating the expected return...")
                     all_returns = policy_est.policy_return(300, 50) # Should we define these as function args?
                     print("Done!")
-                    exp_returns[0, epoch // exp_every] = epoch # Store the number of transitions
-                    exp_returns[1, epoch // exp_every] = np.mean(all_returns[:-1]) # Store the estimated expected return
+                    exp_returns[0, (epoch+1) // exp_every] = epoch + 1 # Store the number of transitions
+                    exp_returns[1, (epoch+1) // exp_every] = np.mean(all_returns[:-1]) # Store the estimated expected return
 
                 if epoch % 1000 == 0:
                     print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}", flush=True)
@@ -234,6 +234,7 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
             break
     # save the model
     torch.save(model.state_dict(), "q_network.pth")  
+
     return model, exp_returns
 
 def evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_initials, max_h):
@@ -269,7 +270,7 @@ def plot_exp(exp_returns_nn, exp_returns_fqi, N, batch_size, filename = "", path
     """Comparing the evolution of the estimated expected return for FQI and PQL"""
     plt.figure(figsize=(10, 6))
     plt.plot(exp_returns_fqi[0,:]*N, exp_returns_fqi[1,:], color = 'red', label = f'Fitted-Q-Iteration')
-    plt.scatter(exp_returns_nn[0,:]*batch_size, exp_returns_nn[1,:], color = 'blue', label = f'Parametric Q-learning')
+    plt.plot(exp_returns_nn[0,:]*batch_size, exp_returns_nn[1,:], color = 'blue', label = f'Parametric Q-learning')
     plt.title(f"Evolution of expected return against effective number of transitions")
     plt.xlabel('Effective number of transitions')
     plt.ylabel('Expected return')
@@ -287,7 +288,7 @@ if __name__ == "__main__":
     batch_size = 4 # Batch size
     epsilon = [1, .1, .8] # Epsilon greedy parameters : start, end, decay rate
     buffer_size = 10000 # Size of the replay buffer
-    num_epochs = 400000 # Number of epochs
+    num_epochs = 200000 # Number of epochs
     target_update_rate = 1000 # How often we update the target network
     hidden_layers = [8, 16, 32, 64, 32, 16, 8] # Hidden layers of the neural network
 
@@ -327,10 +328,10 @@ if __name__ == "__main__":
 
     # FITTED Q-ITERATION PARAMETERS
     traj = "uni-episodic" # Is this better or is uniform better?
-    alg = "trees" # We use extra trees
+    alg = "nn" # We use extra trees
     stop = 0 # We don't use early stopping
-    max_episodes = 2000 # Could use max_transitions instead if we use uniform sampling
-    episodes_incr = 200 # By how many episodes we increment at every iteration
+    max_episodes = 1000 # Could use max_transitions instead if we use uniform sampling
+    episodes_incr = 100 # By how many episodes we increment at every iteration
 
     N = 50 # Horizon considered for FQI
 
