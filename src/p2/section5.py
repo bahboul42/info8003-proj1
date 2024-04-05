@@ -22,7 +22,7 @@ class QNetwork(nn.Module):
         input_dim = input_size
         for hidden_size in hidden_sizes:
             layers.append(nn.Linear(input_dim, hidden_size))
-            layers.append(nn.Tanh())
+            layers.append(nn.Sigmoid())
             input_dim = hidden_size
         layers.append(nn.Linear(hidden_sizes[-1], output_size))
         self.network = nn.Sequential(*layers)
@@ -170,7 +170,7 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
                 if replay_buffer.counter < batch_size:
                     continue
             
-            if epoch % target_update_rate == 0 or epoch == num_epochs - 1:
+            if epoch % target_update_rate == 0:
                 target_model.load_state_dict(model.state_dict())
 
             batch = replay_buffer.sample(batch_size)
@@ -222,10 +222,10 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
                     print("Estimating the expected return...")
                     all_returns = policy_est.policy_return(300, 50) # Should we define these as function args?
                     print("Done!")
-                    exp_returns[0, (epoch+1) // exp_every] = epoch + 1 # Store the number of transitions
+                    exp_returns[0, (epoch+1) // exp_every] = (epoch+1) # Store the number of transitions
                     exp_returns[1, (epoch+1) // exp_every] = np.mean(all_returns[:-1]) # Store the estimated expected return
 
-                if epoch % 1000 == 0:
+                if (epoch+1) % 1000 == 0:
                     print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}", flush=True)
                     print(f"The buffer is made up of {replay_buffer.counter} samples and of 1:{replay_buffer.rew}, -1:{replay_buffer.rew2}", flush=True)
                     print(f"Current epsilon: {agent.epsilon}", flush=True)
@@ -234,7 +234,6 @@ def parametric_q_learning(domain=Domain(), num_epochs=200, epsilon=.1, hidden_la
             break
     # save the model
     torch.save(model.state_dict(), "q_network.pth")  
-
     return model, exp_returns
 
 def evol_returns(domain, traj, alg, stop, max_episodes, episodes_incr, N, n_initials, max_h):
@@ -288,7 +287,7 @@ if __name__ == "__main__":
     batch_size = 4 # Batch size
     epsilon = [1, .1, .8] # Epsilon greedy parameters : start, end, decay rate
     buffer_size = 10000 # Size of the replay buffer
-    num_epochs = 200000 # Number of epochs
+    num_epochs = 400000 # Number of epochs
     target_update_rate = 1000 # How often we update the target network
     hidden_layers = [8, 16, 32, 64, 32, 16, 8] # Hidden layers of the neural network
 
@@ -328,10 +327,10 @@ if __name__ == "__main__":
 
     # FITTED Q-ITERATION PARAMETERS
     traj = "uni-episodic" # Is this better or is uniform better?
-    alg = "nn" # We use extra trees
+    alg = "trees" # We use extra trees
     stop = 0 # We don't use early stopping
-    max_episodes = 1000 # Could use max_transitions instead if we use uniform sampling
-    episodes_incr = 100 # By how many episodes we increment at every iteration
+    max_episodes = 2000 # Could use max_transitions instead if we use uniform sampling
+    episodes_incr = 200 # By how many episodes we increment at every iteration
 
     N = 50 # Horizon considered for FQI
 
