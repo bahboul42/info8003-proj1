@@ -19,7 +19,7 @@ print(f"Using device: {device}")
 
 # CONSTANTS
 lr = 1e-3
-NUM_EPISODES = int(5e3)
+NUM_EPISODES = int(1e4)
 EPS = 1e-6
 GAMMA = 1
 
@@ -60,7 +60,8 @@ def reinforce(model, env, optimizer, seed, isDouble=False):
             mu, logvar = out[0], out[1]
 
             action, log_prob = sample_action(mu, logvar)
-            
+            action, log_prob = action.cpu(), log_prob.cpu()
+
             action = torch.clamp(action, -1, 1) if isDouble else torch.clamp(action, -3, 3)
 
             next_observation, reward, terminated, truncated, info = env.step([action])
@@ -86,7 +87,7 @@ def sample_action(mu, logvar):
     distrib = Normal(mu, std)
     action = distrib.sample()
     log_prob = distrib.log_prob(action)
-    return action.cpu(), log_prob.cpu()
+    return action, log_prob
 
 def update(rewards, log_probs, optimizer):
     g = 0
@@ -108,6 +109,7 @@ def update(rewards, log_probs, optimizer):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+
 
 def inverted_main():
     env = gym.make("InvertedPendulum-v4", render_mode=None)
@@ -137,6 +139,8 @@ def inverted_main():
         mu, logvar = out[0], out[1]
 
         action, _ = sample_action(mu, logvar)
+        action, log_prob = action.cpu(), log_prob.cpu()
+
         next_observation, reward, terminated, truncated, info = env.step([action])
         
         rewards += reward
@@ -150,7 +154,7 @@ def double_inverted_main():
     env = gym.make("InvertedDoublePendulum-v4", render_mode=None)
 
     num_features = env.observation_space.shape[0]
-    model = GaussianFeedForward(input_size=num_features, output_size=2, do_dropout=False, hidden_sizes=[16, 32, 64, 32, 16]).to(device)
+    model = GaussianFeedForward(input_size=num_features, output_size=2, do_dropout=False, hidden_sizes=[48, 32]).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
     seeds = [42, 43, 44, 45, 46]

@@ -53,7 +53,7 @@ def selector():
         bottom_frame.grid_columnconfigure(i, weight=1)
 
     # Second row buttons
-    values_row2 = ['FQI', 'REINFORCE', 'PPO']
+    values_row2 = ['FQI', 'REINFORCE', 'DDPG']
     button_sets[1] = {}
     for index, value in enumerate(values_row2):
         button = tk.Button(bottom_frame, text=f'{value}', command=lambda v=value, r=1: select_option(v, r))

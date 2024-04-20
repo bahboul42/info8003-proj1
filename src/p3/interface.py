@@ -1,11 +1,151 @@
 from selector import selector
-from fqi import QNetwork
-from reinforce import GaussianFeedForward, sample_action
 
 import torch
 import gymnasium as gym
 
 import time
+
+NUM_ACTIONS = 100
+ACTIONS = torch.linspace(-3, 3, NUM_ACTIONS)
+
+class FQIAgent:
+    def __init__(self, model):
+        self.model = model
+
+    def get_action(self, state, actions=ACTIONS):
+        ''' Returns the optimal action for a given state. '''
+        with torch.no_grad():
+
+            state = torch.tensor(state, dtype=torch.float32)
+            state = state.unsqueeze(0)
+            state = self.set_z(state)
+
+            q_values = self.model(state)
+            max_q_i = torch.argmax(q_values)
+
+            action = ACTIONS[max_q_i]
+        return action.item()
+    
+    def set_z(self, states, actions=ACTIONS):
+        # Number of actions and batch size
+        num_actions = actions.size(0)
+        batch_size = states.size(0)
+        
+        # Repeat each state for each action
+        states = states.unsqueeze(1).repeat(1, num_actions, 1)
+        states = states.view(batch_size * num_actions, -1)
+
+        # Repeat actions for the whole batch
+        actions = actions.repeat(batch_size, 1).view(batch_size * num_actions, 1)
+        
+        # Concatenate states with actions
+        state_action_pairs = torch.cat((states, actions), dim=1)
+        
+        return state_action_pairs
+
+
+def inv_fqi(env, num_features):
+    NUM_ACTIONS = 100
+    ACTIONS = torch.linspace(-3, 3, NUM_ACTIONS)
+
+    model = QNetwork(input_size=num_features+1, output_size=1)
+    file = "./models_final/fqi.pth"
+    model.load_state_dict(torch.load(file))
+    model.eval()
+
+    agent = FQIAgent(model)
+
+    observation, info = env.reset()
+    done = False
+    rewards = 0
+    while not done:
+        action = agent.get_action(observation, actions=ACTIONS)
+        next_observation, reward, terminated, truncated, info = env.step([action])
+        rewards += reward
+        done = terminated or truncated
+        observation = next_observation  
+    print(f"Total Reward earned with FQI: {rewards}")
+
+def inv_reinforce(env, num_features):
+    model = GaussianFeedForward(input_size=num_features, output_size=2)
+    file = "./models_final/reinforce.pth"
+    model.load_state_dict(torch.load(file))
+    model.eval()
+
+    observation, info = env.reset()
+    done = False
+    rewards = 0
+    while not done:
+        observation = torch.tensor(observation, dtype=torch.float32)
+
+        out = model(observation)
+        mu, logvar = out[0], out[1]
+
+        action, _ = sample_action(mu, logvar)
+        
+        action = torch.clamp(action, -3, 3)
+
+        next_observation, reward, terminated, truncated, info = env.step([action])
+        
+        rewards += reward
+        done = terminated or truncated
+        observation = next_observation
+    print(f"Total Reward earned with REINFORCE: {rewards}")
+
+def inv_ddpg(env, num_features):
+    pass
+
+def double_inv_fqi(env, num_features):
+    NUM_ACTIONS = int(100/3)
+    ACTIONS = torch.linspace(-1, 1, NUM_ACTIONS)
+
+    model = QNetwork(input_size=num_features+1, output_size=1)
+    file = "./models_final/dfqi.pth"
+    model.load_state_dict(torch.load(file))
+    model.eval()
+
+    agent = FQIAgent(model)
+
+    observation, info = env.reset()
+    done = False
+    rewards = 0
+    while not done:
+        action = agent.get_action(observation, actions=ACTIONS)
+        next_observation, reward, terminated, truncated, info = env.step([action])
+        rewards += reward
+        done = terminated or truncated
+        observation = next_observation  
+    print(f"Total Reward earned with FQI: {rewards}")
+
+def double_inv_reinforce(env, num_features):
+    model  = GaussianFeedForward(input_size=num_features, output_size=2, do_dropout=False, hidden_sizes=[48, 32])
+    file = "./models_final/dreinforce.pth"
+    model.load_state_dict(torch.load(file))
+    model.eval()
+
+    observation, info = env.reset()
+    done = False
+    rewards = 0
+    while not done:
+        observation = torch.tensor(observation, dtype=torch.float32)
+
+        out = model(observation)
+        mu, logvar = out[0], out[1]
+
+        action, _ = sample_action(mu, logvar)
+        
+        action = torch.clamp(action, -1, 1)
+
+        next_observation, reward, terminated, truncated, info = env.step([action])
+        
+        rewards += reward
+        done = terminated or truncated
+        observation = next_observation
+    print(f"Total Reward earned with REINFORCE: {rewards}")
+
+def double_inv_ddpg(env, num_features):
+    pass
+
 
 if __name__ == "__main__":
     sel = selector()
@@ -13,60 +153,39 @@ if __name__ == "__main__":
     simu = sel[0]
     algo = sel[1]
 
-    isDouble = False
-
     if simu == 'Inverted Pendulum':
         
         env = 'InvertedPendulum-v4'
         env = gym.make(env, render_mode='human')
         num_features = env.observation_space.shape[0]
+
         if algo == 'FQI':
-            model = QNetwork(input_size=num_features, output_size=1)
+            from fqi import QNetwork
+            inv_fqi(env, num_features)
         elif algo == 'REINFORCE':
-            model = GaussianFeedForward(input_size=num_features, output_size=2)
-            file = "./models/reinforce_4700-42.pth"
-        elif algo == 'PPO':
-            pass
+            from reinforce import GaussianFeedForward, sample_action
+            inv_reinforce(env, num_features)
+        elif algo == 'DDPG':
+            inv_ddpg(env, num_features)
         else:
             raise ValueError("Invalid Algorithm")
-        
 
     elif simu == 'Double Inverted Pendulum':
-        isDouble = True
-        env = 'DoubleInvertedPendulum-v4'
+        env = 'InvertedDoublePendulum-v4'
+        env = gym.make(env, render_mode='human')
+        num_features = env.observation_space.shape[0]
+
+        if algo == 'FQI':
+            from fqi import QNetwork
+            double_inv_fqi(env, num_features)
+        elif algo == 'REINFORCE':
+            from reinforce import GaussianFeedForward, sample_action
+            double_inv_reinforce(env, num_features)
+        elif algo == 'DDPG':
+            double_inv_ddpg(env, num_features)
+        else:   
+            raise ValueError("Invalid Algorithm")
     else:
         raise ValueError("Invalid Environment")
     
 
-
-    
-    time.sleep(.3)
-
-    model.load_state_dict(torch.load(file))
-    model.eval()
-
-    print("Max episode steps:", env.spec.max_episode_steps)
-    observation, info = env.reset()
-    done = False
-    
-    i = 0
-    while not done:
-        i+=1
-        if i == 1000:
-            print("Max steps reached")
-        observation = torch.tensor(observation, dtype=torch.float32)
-
-        out = model(observation)
-
-        if algo == 'REINFORCE':
-            mu, logvar = out[0], out[1]
-            action, _ = sample_action(mu, logvar)
-        
-        action = torch.clamp(action, -1, 1) if isDouble else torch.clamp(action, -3, 3)
-
-        next_observation, reward, terminated, truncated, info = env.step([action])
-        
-        done = terminated or truncated
-        observation = next_observation
-
-    print("Starting Simulation...")

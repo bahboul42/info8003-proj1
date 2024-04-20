@@ -18,18 +18,19 @@ import gymnasium as gym
 
 # CONSTANTS
 lr = 1e-3
-BATCH_SIZE = 256
-NUM_ACTIONS = 100
-NUM_ITERS = 50
-N_TRANS = 500000
+BATCH_SIZE = 2048
+NUM_ACTIONS = int(100/3)
+NUM_ITERS = 200
+N_TRANS = 1000000
 ACTIONS = torch.linspace(-3, 3, NUM_ACTIONS).to(device)
+GAMMA = 1
 
 # 1. 1-step transitions
 # 2. Create an input/output set with 1 step transitions and fitted q from last horizon
 # 3. Train a model on the input/output set
 class QNetwork(nn.Module):
     ''' Neural network for Q-learning '''
-    def __init__(self, input_size, output_size=1, hidden_sizes=[16, 32, 16, 8]):
+    def __init__(self, input_size, output_size=1, hidden_sizes=[32, 16]):
         super(QNetwork, self).__init__()
         layers = []
         input_dim = input_size
@@ -43,21 +44,19 @@ class QNetwork(nn.Module):
     def forward(self, x):
         return self.network(x)
     
-def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE):
+def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE, actions=ACTIONS, model_name="fqi"):
     ''' Performs Fitted Q Iteration on the given domain and transitions with a neural network. '''
     num_features = env.observation_space.shape[0]
     
     X = torch.tensor(data[:, :(num_features + 1)], dtype=torch.float32).to(device)
     y = torch.tensor(data[:, (num_features + 1)], dtype=torch.float32).view(-1, 1).to(device)
     z = torch.tensor(data[:, (num_features + 3):], dtype=torch.float32).to(device)
-    z = set_z(z)
+    z = set_z(z, actions=actions)
     z = z.view(X.shape[0], (num_features + 1) * NUM_ACTIONS)
-
     # Creating a dataset and dataloader for mini-batch training
     dataset = TensorDataset(X, y, z)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-    
     criterion = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr=lr)
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=10,)
@@ -84,9 +83,8 @@ def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE
             v_z = z_batch.view(z_batch.shape[0] * NUM_ACTIONS, num_features + 1)
             v_z = model(v_z)
             v_z = v_z.view(-1, NUM_ACTIONS)
-            concat = torch.max(v_z)
-
-            out = y_batch + concat
+            concat, _ = torch.max(v_z, dim=1, keepdim=True)
+            out = y_batch + concat * GAMMA
 
             l_pred_batch = model(X_batch)
 
@@ -100,9 +98,9 @@ def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE
             e = criterion(l_pred, r_pred) # APPEND TO TENSOR ?
 
     # save mode
-        if iter % 20 == 0:
+        if iter % 10 == 0:
             print(f"Iteration {iter} Loss: {e.item()}\r")
-            torch.save(model.state_dict(), f'models/fqi_{iter}.pth')
+            torch.save(model.state_dict(), f'models/{model_name}_{iter}.pth')
     return model
 
 def set_z(states, actions=ACTIONS):
@@ -131,27 +129,7 @@ def set_z(states, actions=ACTIONS):
     # Concatenate states with actions
     state_action_pairs = torch.cat((states, actions), dim=1)
     
-    return state_action_pairs
-
-
-class OptimalAgent:
-    ''' Agent that selects the optimal action based on a given model. '''
-    def __init__(self, model):
-        self.model = model
-
-    def get_action(self, state):
-        ''' Returns the optimal action for a given state. '''
-        with torch.no_grad():
-
-            state = torch.tensor(state, dtype=torch.float32).to(device)
-            state = state.unsqueeze(0)
-            state = set_z(state)
-
-            q_values = self.model(state)
-            max_q_i = torch.argmax(q_values)
-
-            action = ACTIONS[max_q_i]
-        return action.item()
+    return state_action_pairs   
             
 def generate_transitions(env, num_transitions, X=[], y=[], z=[]):
     observation, info = env.reset(seed=42)
@@ -177,41 +155,22 @@ def generate_transitions(env, num_transitions, X=[], y=[], z=[]):
 
     return data
 
-
-def main():
-    # Initialize the environment
-    render_mode = None
-    # render_mode = 'human'
-    env = gym.make("InvertedPendulum-v4", render_mode=render_mode)  # 'human' mode is for visual, use None for faster computation
-    num_fea = env.observation_space.shape[0]
-    # Number of transitions generated
-    num_transitions = N_TRANS
-    model = QNetwork(input_size=num_fea, output_size=1).to(device)
-    # Generate the set of transitions
-    for _ in range(5):
-        transitions = generate_transitions(env, num_transitions)
-
-        model = nn_fitted_q_iteration(env, transitions, model)
-    agent = OptimalAgent(model)
-
-    env.close()
-    env = gym.make("InvertedPendulum-v4", render_mode='human')  # 'human' mode is for visual, use None for faster computation
-
-    observation, info = env.reset(seed=42)
-    done = False
-    total_reward = 0
-
-    while not done:
-        action = agent.get_action(observation)
-        print(action)
-
-        next_observation, reward, terminated, truncated, info = env.step([action])
-        total_reward += reward
-
-        done = terminated or truncated
-        observation = next_observation
-    print(f"Total Reward: {total_reward}")
-    env.close()    
-
 if __name__ == "__main__":
-  main()
+    render_mode = None
+    # env = gym.make("InvertedPendulum-v4", render_mode=render_mode)  # 'human' mode is for visual, use None for faster computation
+    # num_features = env.observation_space.shape[0]
+    # num_transitions = N_TRANS
+    # model = QNetwork(input_size=num_features+1, output_size=1).to(device)
+    # transitions = generate_transitions(env, num_transitions)
+    # model = nn_fitted_q_iteration(env, transitions, model)
+    # env.close()
+
+    ACTIONS = torch.linspace(-1, 1, NUM_ACTIONS).to(device)
+
+    env = gym.make("InvertedDoublePendulum-v4", render_mode=render_mode)
+    num_features = env.observation_space.shape[0]
+    num_transitions = N_TRANS
+    model = QNetwork(input_size=num_features+1, output_size=1).to(device)
+    transitions = generate_transitions(env, num_transitions)
+    model = nn_fitted_q_iteration(env, transitions, model, actions=ACTIONS, model_name="dfqi")
+    env.close()
