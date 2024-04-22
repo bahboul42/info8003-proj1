@@ -19,11 +19,11 @@ import gymnasium as gym
 # CONSTANTS
 lr = 1e-3
 BATCH_SIZE = 2048
-NUM_ACTIONS = int(100/3)
-NUM_ITERS = 200
+NUM_ACTIONS = int(5)
+NUM_ITERS = 100
 N_TRANS = 1000000
 ACTIONS = torch.linspace(-3, 3, NUM_ACTIONS).to(device)
-GAMMA = 1
+GAMMA = .99
 
 # 1. 1-step transitions
 # 2. Create an input/output set with 1 step transitions and fitted q from last horizon
@@ -44,6 +44,24 @@ class QNetwork(nn.Module):
     def forward(self, x):
         return self.network(x)
     
+class FQIAgent:
+    def __init__(self, model):
+        self.model = model
+
+    def get_action(self, state, actions=ACTIONS):
+        ''' Returns the optimal action for a given state. '''
+        with torch.no_grad():
+
+            state = torch.tensor(state, dtype=torch.float32, device=device)
+            state = state.unsqueeze(0)
+            state = set_z(state)
+
+            q_values = self.model(state)
+            max_q_i = torch.argmax(q_values)
+
+            action = ACTIONS[max_q_i]
+        return action.item()
+
 def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE, actions=ACTIONS, model_name="fqi"):
     ''' Performs Fitted Q Iteration on the given domain and transitions with a neural network. '''
     num_features = env.observation_space.shape[0]
@@ -57,6 +75,7 @@ def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE
     dataset = TensorDataset(X, y, z)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
+    agent = FQIAgent(model)
     criterion = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr=lr)
     scheduler = ReduceLROnPlateau(optimizer, 'min', patience=10,)
@@ -101,6 +120,19 @@ def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE
         if iter % 10 == 0:
             print(f"Iteration {iter} Loss: {e.item()}\r")
             torch.save(model.state_dict(), f'models/{model_name}_{iter}.pth')
+            envi = gym.make("InvertedDoublePendulum-v4", render_mode='human')
+            done = False
+            observation, info = envi.reset()
+            rewards = 0
+            while not done:
+                action = agent.get_action(observation, actions=ACTIONS)
+                next_observation, reward, terminated, truncated, info = envi.step([action])
+                rewards += reward
+                done = terminated or truncated
+                observation = next_observation
+            print(f"Total Reward earned with FQI: {rewards}")
+            envi.close()
+
     return model
 
 def set_z(states, actions=ACTIONS):
@@ -170,7 +202,7 @@ if __name__ == "__main__":
     env = gym.make("InvertedDoublePendulum-v4", render_mode=render_mode)
     num_features = env.observation_space.shape[0]
     num_transitions = N_TRANS
-    model = QNetwork(input_size=num_features+1, output_size=1).to(device)
+    model = QNetwork(input_size=num_features+1, output_size=1, hidden_sizes=[64, 256, 64]).to(device)
     transitions = generate_transitions(env, num_transitions)
     model = nn_fitted_q_iteration(env, transitions, model, actions=ACTIONS, model_name="dfqi")
     env.close()

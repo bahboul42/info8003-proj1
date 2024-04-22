@@ -93,7 +93,27 @@ def inv_reinforce(env, num_features):
     print(f"Total Reward earned with REINFORCE: {rewards}")
 
 def inv_ddpg(env, num_features):
-    pass
+
+    actor = Actor(num_features, 1)
+    file = "./models_final/actor.pth"
+    actor.load_state_dict(torch.load(file))
+
+    state, _ = env.reset()
+    total_rew = 0
+    done = False
+    while not done:
+        state = torch.tensor(state, dtype=torch.float32)
+        action = actor(state).detach()
+        next_state, reward, terminated, truncated, _ = env.step(action.cpu().numpy())
+        total_rew += reward
+
+        done = terminated or truncated
+
+        state = next_state
+
+    print(f"Total reward: {total_rew}")
+
+
 
 def double_inv_fqi(env, num_features):
     NUM_ACTIONS = int(100/3)
@@ -140,11 +160,34 @@ def double_inv_reinforce(env, num_features):
         
         rewards += reward
         done = terminated or truncated
+        if done and rewards < 1000:
+            rewards = 0
+            observation, info = env.reset()
+            done = False
+            
         observation = next_observation
+
     print(f"Total Reward earned with REINFORCE: {rewards}")
 
 def double_inv_ddpg(env, num_features):
-    pass
+    actor = Actor(num_features, 1, double=True)
+    file = "./models_final/dactor.pth"
+    actor.load_state_dict(torch.load(file))
+
+    state, _ = env.reset()
+    total_rew = 0
+    done = False
+    while not done:
+        state = torch.tensor(state, dtype=torch.float32)
+        action = actor(state).detach()
+        next_state, reward, terminated, truncated, _ = env.step(action.cpu().numpy())
+        total_rew += reward
+
+        done = terminated or truncated
+
+        state = next_state
+
+    print(f"Total reward: {total_rew}")
 
 
 if __name__ == "__main__":
@@ -166,6 +209,7 @@ if __name__ == "__main__":
             from reinforce import GaussianFeedForward, sample_action
             inv_reinforce(env, num_features)
         elif algo == 'DDPG':
+            from ddpg import Actor
             inv_ddpg(env, num_features)
         else:
             raise ValueError("Invalid Algorithm")
@@ -182,6 +226,7 @@ if __name__ == "__main__":
             from reinforce import GaussianFeedForward, sample_action
             double_inv_reinforce(env, num_features)
         elif algo == 'DDPG':
+            from ddpg import Actor
             double_inv_ddpg(env, num_features)
         else:   
             raise ValueError("Invalid Algorithm")

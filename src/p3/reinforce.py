@@ -10,6 +10,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.optim as optim 
 from torch.utils.data import TensorDataset, DataLoader
 
+import matplotlib.pyplot as plt
+
 from tqdm import tqdm
 
 import gymnasium as gym
@@ -19,7 +21,7 @@ print(f"Using device: {device}")
 
 # CONSTANTS
 lr = 1e-3
-NUM_EPISODES = int(1e4)
+NUM_EPISODES = int(5e3)
 EPS = 1e-6
 GAMMA = 1
 
@@ -44,6 +46,7 @@ class GaussianFeedForward(nn.Module):
 def reinforce(model, env, optimizer, seed, isDouble=False):
     ''' Perform REINFORCE algorithm '''
     model.train()
+    rewards_list = []
     for episode in tqdm(range(NUM_EPISODES)):
 
         observation, info = env.reset()
@@ -71,7 +74,9 @@ def reinforce(model, env, optimizer, seed, isDouble=False):
             log_probs = torch.cat((log_prob.unsqueeze(0), log_probs), dim=0)
             rewards = torch.cat((torch.tensor(reward, dtype=torch.float32).unsqueeze(0), rewards), dim=0)
             observation = next_observation
-
+        rewards_list.append(rewards.sum().cpu().detach().numpy())
+        if rewards.sum() > 700:
+            torch.save(model.state_dict(), f"./dreinforce_HOOO{reward.sum()}.pth")
         if episode % 100 == 0: 
             print(f"Episode: {episode}, Reward: {rewards.sum()}")
             if isDouble:
@@ -80,7 +85,7 @@ def reinforce(model, env, optimizer, seed, isDouble=False):
                 torch.save(model.state_dict(), f"./models/reinforce_{episode}-{seed}.pth")
 
         update(rewards, log_probs, optimizer)
-    return model
+    return model, rewards_list
 
 def sample_action(mu, logvar):
     std = torch.exp(logvar / 2)
@@ -155,14 +160,19 @@ def double_inverted_main():
 
     num_features = env.observation_space.shape[0]
     model = GaussianFeedForward(input_size=num_features, output_size=2, do_dropout=False, hidden_sizes=[48, 32]).to(device)
-
+    model.load_state_dict(torch.load("./models_final/dreinforce.pth"))
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    seeds = [42, 43, 44, 45, 46]
+    seeds = [ 43, 44, 45, 46]
     for s in seeds:
         random.seed(s)
         torch.manual_seed(s)
         np.random.seed(s)
-        model = reinforce(model, env, optimizer, s, True)
+        model.load_state_dict(torch.load("./models_final/dreinforce.pth"))
+        model, rl = reinforce(model, env, optimizer, s, True)
+        
+        plt.plot(np.arange(len(rl)), rl)
+        plt.show()
+
     torch.save(model.state_dict(), "./models/dreinforce.pth")
 
 if __name__ == "__main__":
