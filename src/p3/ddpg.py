@@ -1,6 +1,7 @@
 import gymnasium as gym
 import numpy as np
 from copy import deepcopy
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -16,11 +17,11 @@ lr_actor = 0.0001
 lr_critic = 0.001
 tau = 0.001
 n_transitions = 1000
-n_episodes = 100000
-noise_std = 0.3 # 0.5 for the simple pendulum
-buffer_size = 1000000
+n_episodes = 50
+buffer_size = 10000
 batch_size = 64
 gamma = 0.99
+every_n = 500
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -133,111 +134,143 @@ class ReplayBuffer():
             dones.append(done)
         return torch.cat(states, dim=0), torch.cat(actions, dim=0), torch.tensor(rewards, dtype=torch.float32).to(device), torch.tensor(next_states, dtype=torch.float32).to(device), torch.tensor(dones, dtype=torch.float32).to(device)
 
-def ddpg(env, n_episodes, n_transitions, noise_std, buffer_size, batch_size, tau, gamma, double=False):
-    buffer = ReplayBuffer(buffer_size)
+def ddpg(env, n_episodes, n_transitions, noise_std, buffer_size, batch_size, tau, gamma, double=False, n_iterations=3):
+    
+    all_mean_rewards = []
+    for i in range(1, n_iterations+1):
+        print(f"Iteration {i}...")
 
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.shape[0]
+        buffer = ReplayBuffer(buffer_size)
 
-    actor = Actor(state_dim, action_dim, double).to(device)
-    critic = Critic(state_dim, action_dim, double).to(device)
+        state_dim = env.observation_space.shape[0]
+        action_dim = env.action_space.shape[0]
 
-    target_actor = deepcopy(actor).to(device)
-    target_critic = deepcopy(critic).to(device)
+        actor = Actor(state_dim, action_dim, double).to(device)
+        critic = Critic(state_dim, action_dim, double).to(device)
 
-    # We don't need to compute their gradients
-    for param in target_actor.parameters():
-            param.requires_grad = True
-    for param in target_critic.parameters():
-            param.requires_grad = True
+        target_actor = deepcopy(actor).to(device)
+        target_critic = deepcopy(critic).to(device)
 
-    hasConverged = False
+        # We don't need to compute their gradients
+        for param in target_actor.parameters():
+                param.requires_grad = True
+        for param in target_critic.parameters():
+                param.requires_grad = True
 
-    for episode in range(n_episodes):
-        if hasConverged:
-            break
+        mean_rewards = []
 
-        state, _ = env.reset()
-        noise_std = noise_std * (0.1 ** (1 / n_episodes))
+        for episode in range(n_episodes):
+            state, _ = env.reset()
+            noise_std = noise_std * (0.5 ** (1/n_episodes))
 
-        for _ in range(n_transitions):
-            state = torch.tensor(state, dtype=torch.float32).to(device)
+            for transition in range(1, n_transitions+1):
+                state = torch.tensor(state, dtype=torch.float32).to(device)
 
-            action = actor(state).detach()
-            action = action + noise_std * torch.randn(action_dim).to(device)
-            action = torch.clamp(action, -3, 3)
+                action = actor(state).detach()
+                action = action + noise_std * torch.randn(action_dim).to(device)
+                action = torch.clamp(action, -3, 3)
 
-            next_state, reward, terminated, truncated, _ = env.step(action.cpu().numpy())
-            done = 1 if terminated else 0
+                next_state, reward, terminated, truncated, _ = env.step(action.cpu().numpy())
+                done = 1 if terminated else 0
 
-            buffer.add(state, action, reward, next_state, done)
+                buffer.add(state, action, reward, next_state, done)
 
-            if buffer.size() > batch_size:
-                states, actions, rewards, next_states, dones = buffer.sample(batch_size)
+                if buffer.size() > batch_size:
+                    states, actions, rewards, next_states, dones = buffer.sample(batch_size)
 
-                rewards = rewards.unsqueeze(dim=-1)
-                dones = dones.unsqueeze(dim=-1)
+                    rewards = rewards.unsqueeze(dim=-1)
+                    dones = dones.unsqueeze(dim=-1)
 
-                y = rewards + gamma * target_critic(next_states.to(device), target_actor(next_states.to(device))) * (1 - dones)
+                    y = rewards + gamma * target_critic(next_states.to(device), target_actor(next_states.to(device))) * (1 - dones)
 
-                critic.train(states.to(device), actions.to(device), y.to(device))
+                    critic.train(states.to(device), actions.to(device), y.to(device))
 
-                actor.train(critic, states.to(device))
+                    actor.train(critic, states.to(device))
 
-                target_actor.update(actor, tau)
-                target_critic.update(critic, tau)
+                    target_actor.update(actor, tau)
+                    target_critic.update(critic, tau)
 
-            if terminated or truncated:
-                break
+                if terminated or truncated:
+                    state, _ = env.reset()
+                else:
+                    state = next_state
 
-            state = next_state
+                if transition % every_n == 0:
+                    if double:
+                        torch.save(actor.state_dict(), f"dactor.pth")
+                        torch.save(critic.state_dict(), "dcritic.pth")
+                    else:
+                        torch.save(actor.state_dict(), "actor.pth")
+                        torch.save(critic.state_dict(), "critic.pth")
 
-        if (episode + 1) % 100 == 0:
-            if double:
-                torch.save(actor.state_dict(), f"dactor.pth")
-                torch.save(critic.state_dict(), "dcritic.pth")
-            else:
-                torch.save(actor.state_dict(), "actor.pth")
-                torch.save(critic.state_dict(), "critic.pth")
+                    print(f"Transition {2*episode*every_n+transition}/{n_episodes*n_transitions}")
 
-            print(f"Episode {episode + 1}/{n_episodes}")
+                    avg_rew = 0
+                    avg_steps = 0
+                    for _ in range(100):
+                        state, _ = env.reset()
+                        for timestep in range(1, n_transitions+1):
+                            with torch.no_grad():
+                                state = torch.tensor(state, dtype=torch.float32).to(device)
+                                action = actor(state).detach()
+                                next_state, reward, terminated, truncated, _ = env.step(action.cpu().numpy())
+                                avg_rew += reward/100
+                                if terminated or truncated:
+                                    avg_steps += timestep/100
+                                    break
+                                state = next_state
+                    print(f"Average reward: {avg_rew}")
+                    print(f"Average number of time steps: {avg_steps}")
+                    mean_rewards.append(avg_rew)
 
-            avg_rew = 0
-            avg_steps = 0
-            for _ in range(100):
-                state, _ = env.reset()
-                for timestep in range(1, n_transitions+1):
-                    with torch.no_grad():
-                      state = torch.tensor(state, dtype=torch.float32).to(device)
-                      action = actor(state).detach()
-                      next_state, reward, terminated, truncated, _ = env.step(action.cpu().numpy())
-                      avg_rew += reward/100
-                      if terminated or truncated:
-                          avg_steps += timestep/100
-                          break
-                      state = next_state
+        all_mean_rewards.append(mean_rewards)
+    
+    return actor, critic, all_mean_rewards
 
-            print(f"Average reward: {avg_rew}")
-            print(f"Average number of time steps: {avg_steps}")
-            if not double and avg_rew >= 999:
-                hasConverged = True
-                print('converged')
+def plot_rewards(all_mean_rewards, double=False):
+    all_mean_rewards = np.array(all_mean_rewards)
+    mean = np.squeeze(np.mean(all_mean_rewards, axis=0))
+    std = np.squeeze(np.std(all_mean_rewards, axis=0))
 
-    return actor, critic
+    max_steps = n_episodes * n_transitions
+    steps = max_steps // every_n
+
+    plt.figure(figsize=(10, 6))
+
+    # Plot the evolution of expected rewards
+    plt.plot(range(every_n, max_steps + every_n, every_n), mean[:steps], label='Mean')
+
+    # Fill between +- standard deviation
+    plt.fill_between(range(every_n, max_steps + every_n, every_n), mean[:steps] - std[:steps], mean[:steps] + std[:steps], alpha=0.2)
+
+    plt.xlabel('Timesteps')
+    plt.ylabel('Mean Reward')
+    # Need to specify it is Inverted Double Pendulum if double is True
+    plt.title('Mean Reward over Timesteps for DDPG (our implementation)' + (' with Inverted Double Pendulum' if double else ' with Inverted Pendulum'))
+    plt.grid(True)
+    plt.savefig('our_ddpg' + ('_double.png' if double else '_simple.png'))
+    plt.close()
 
 def main():
-    '''print('Simple inverted pendulum')
+    print('Simple inverted pendulum')
     # Initialize the environment
     env = gym.make("InvertedPendulum-v4")
+    noise_std = 0.5
     # Apply the algorithm
-    actor, critic = ddpg(env, n_episodes, n_transitions, noise_std, buffer_size, batch_size, tau, double=False)
-    env.close()'''
+    _, _, all_mean_rewards = ddpg(env, n_episodes, n_transitions, noise_std, buffer_size, batch_size, tau, gamma, double=False)
+    env.close()
+
+    plot_rewards(all_mean_rewards, double=False)
+
     print('Double inverted pendulum')
     # Initialize the environment
     env = gym.make("InvertedDoublePendulum-v4")
+    noise_std = 0.3
     # Apply the algorithm
-    actor, critic = ddpg(env, n_episodes, n_transitions, noise_std, buffer_size, batch_size, tau, double=True)
+    _, _, all_mean_rewards = ddpg(env, n_episodes, n_transitions, noise_std, buffer_size, batch_size, tau, gamma, double=True)
     env.close()
+
+    plot_rewards(all_mean_rewards, double=True)
 
 if __name__ == "__main__":
     main()

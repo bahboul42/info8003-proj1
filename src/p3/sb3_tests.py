@@ -93,6 +93,8 @@ def plot_evolution(all_rew, alg="ddpg", double=False):
 
     steps = max_steps // n_steps
 
+    plt.figure(figsize=(10, 6))
+
     # Plot the evolution of expected rewards
     plt.plot(range(n_steps, max_steps + n_steps, n_steps), mean[:steps], label='Mean')
 
@@ -104,7 +106,8 @@ def plot_evolution(all_rew, alg="ddpg", double=False):
     # Need to specify it is Inverted Double Pendulum if double is True
     plt.title('Mean Reward over Timesteps for ' + alg.upper() + (' with Inverted Double Pendulum' if double else ' with Inverted Pendulum'))
     plt.grid(True)
-    plt.savefig(alg + ('_double.png' if double else '_simple.png'))  
+    plt.savefig(alg + ('_double.png' if double else '_simple.png')) 
+    plt.close() 
     
 def main():
     all_algs = ["ddpg", "ppo", "sac"]
