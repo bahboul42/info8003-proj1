@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-
+import matplotlib.pyplot as plt
 from itertools import product
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -20,10 +20,11 @@ import gymnasium as gym
 lr = 1e-3
 BATCH_SIZE = 2048
 NUM_ACTIONS = int(5)
-NUM_ITERS = 100
-N_TRANS = 1000000
+NUM_ITERS = 75
+N_TRANS = 1000002
+STEP = 50000
 ACTIONS = torch.linspace(-3, 3, NUM_ACTIONS).to(device)
-GAMMA = .99
+GAMMA = 1
 
 # 1. 1-step transitions
 # 2. Create an input/output set with 1 step transitions and fitted q from last horizon
@@ -120,18 +121,18 @@ def nn_fitted_q_iteration(env, data, model, n_q=NUM_ITERS, batch_size=BATCH_SIZE
         if iter % 10 == 0:
             print(f"Iteration {iter} Loss: {e.item()}\r")
             torch.save(model.state_dict(), f'models/{model_name}_{iter}.pth')
-            envi = gym.make("InvertedDoublePendulum-v4", render_mode='human')
-            done = False
-            observation, info = envi.reset()
-            rewards = 0
-            while not done:
-                action = agent.get_action(observation, actions=ACTIONS)
-                next_observation, reward, terminated, truncated, info = envi.step([action])
-                rewards += reward
-                done = terminated or truncated
-                observation = next_observation
-            print(f"Total Reward earned with FQI: {rewards}")
-            envi.close()
+            # envi = gym.make("InvertedPendulum-v4", render_mode='human')
+            # done = False
+            # observation, info = envi.reset()
+            # rewards = 0
+            # while not done:
+            #     action = agent.get_action(observation, actions=ACTIONS)
+            #     next_observation, reward, terminated, truncated, info = envi.step([action])
+            #     rewards += reward
+            #     done = terminated or truncated
+            #     observation = next_observation
+            # print(f"Total Reward earned with FQI: {rewards}")
+            # envi.close()
 
     return model
 
@@ -163,7 +164,7 @@ def set_z(states, actions=ACTIONS):
     
     return state_action_pairs   
             
-def generate_transitions(env, num_transitions, X=[], y=[], z=[]):
+def generate_transitions(env, num_transitions, n_episodes=np.inf, X=[], y=[], z=[]):
     observation, info = env.reset(seed=42)
 
     # Define the shape of the array you need based on your environment's observation space and action space
@@ -171,15 +172,21 @@ def generate_transitions(env, num_transitions, X=[], y=[], z=[]):
     action_dim = 1  # Assuming a single continuous action for simplicity
     data = np.zeros((num_transitions, num_features + action_dim + 1 + 1 + num_features))  # state + action + reward + done + next_state
 
+    episodes = 0
     for i in range(num_transitions):
         action = env.action_space.sample()
     
         next_observation, reward, terminated, truncated, info = env.step(action)
             
         done = 1 if terminated  or truncated else 0
-        
-        data[i] = np.hstack((observation, action, reward, done, next_observation))
 
+
+        data[i] = np.hstack((observation, action, reward, done, next_observation))
+            
+        if done == 1:
+            episodes += 1
+        if episodes >= n_episodes:
+            break
         if terminated or truncated:
             observation, info = env.reset()
         else:
@@ -188,21 +195,60 @@ def generate_transitions(env, num_transitions, X=[], y=[], z=[]):
     return data
 
 if __name__ == "__main__":
+
     render_mode = None
-    # env = gym.make("InvertedPendulum-v4", render_mode=render_mode)  # 'human' mode is for visual, use None for faster computation
-    # num_features = env.observation_space.shape[0]
-    # num_transitions = N_TRANS
-    # model = QNetwork(input_size=num_features+1, output_size=1).to(device)
-    # transitions = generate_transitions(env, num_transitions)
-    # model = nn_fitted_q_iteration(env, transitions, model)
-    # env.close()
-
-    ACTIONS = torch.linspace(-1, 1, NUM_ACTIONS).to(device)
-
-    env = gym.make("InvertedDoublePendulum-v4", render_mode=render_mode)
+    env = gym.make("InvertedPendulum-v4", render_mode=render_mode)  # 'human' mode is for visual, use None for faster computation
     num_features = env.observation_space.shape[0]
     num_transitions = N_TRANS
-    model = QNetwork(input_size=num_features+1, output_size=1, hidden_sizes=[64, 256, 64]).to(device)
-    transitions = generate_transitions(env, num_transitions)
-    model = nn_fitted_q_iteration(env, transitions, model, actions=ACTIONS, model_name="dfqi")
+
+    scores = []
+    for s in [1, 2]:
+        np.random.seed(s)
+        torch.manual_seed(s)
+        rls = []
+        for traj_l in range(1, N_TRANS, STEP):
+            transitions = generate_transitions(env, traj_l)
+            model = QNetwork(input_size=num_features+1, output_size=1).to(device)
+            model = nn_fitted_q_iteration(env, transitions, model, model_name="fqi")
+            
+            envi = gym.make("InvertedPendulum-v4", render_mode=None)
+            agent = FQIAgent(model)
+            done = False
+            observation, info = envi.reset()
+            rewards = 0
+            while not done:
+                action = agent.get_action(observation, actions=ACTIONS)
+                next_observation, reward, terminated, truncated, info = envi.step([action])
+                rewards += reward
+                done = terminated or truncated
+                observation = next_observation
+            rls.append(rewards)
+            print(f"Total Reward earned with FQI: {rewards}")
+            envi.close()
+        scores.append(rls)
+
+
+    rls = np.array(scores)
+    rls = np.mean(rls, axis=0)
+    rls_std = np.std(scores, axis=0)
+    plt.figure()
+    plt.plot(np.arange(1, num_transitions, STEP), rls)
+    plt.fill_between(range(1, num_transitions, STEP), rls - rls_std, rls + rls_std, alpha=.5)
+    plt.xlabel("Trajectory Length")
+    plt.ylabel("Total Reward")
+    plt.title("FQI Total Reward vs Trajectory Length")
+    plt.savefig("fqi_simple.png")
+
     env.close()
+
+
+
+    # ACTIONS = torch.linspace(-1, 1, NUM_ACTIONS).to(device)
+
+    # env = gym.make("InvertedDoublePendulum-v4", render_mode=render_mode)
+    # num_features = env.observation_space.shape[0]
+    # num_transitions = N_TRANS
+    # model = QNetwork(input_size=num_features+1, output_size=1, hidden_sizes=[64, 256, 64]).to(device)
+    # transitions = generate_transitions(env, num_transitions)
+    # model = nn_fitted_q_iteration(env, transitions, model, actions=ACTIONS, model_name="dfqi")
+    # env.close()

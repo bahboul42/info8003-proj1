@@ -184,7 +184,6 @@ def double_inv_ddpg(env, num_features):
         total_rew += reward
 
         done = terminated or truncated
-
         state = next_state
 
     print(f"Total reward: {total_rew}")

@@ -10,9 +10,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import torch.optim as optim 
 from torch.utils.data import TensorDataset, DataLoader
 
-import matplotlib.pyplot as plt
-
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 import gymnasium as gym
 
@@ -21,9 +20,9 @@ print(f"Using device: {device}")
 
 # CONSTANTS
 lr = 1e-3
-NUM_EPISODES = int(5e3)
+NUM_EPISODES = int(5e4)
 EPS = 1e-6
-GAMMA = 1
+GAMMA = .99
 
 class GaussianFeedForward(nn.Module):
     ''' Neural network for Q-learning '''
@@ -46,7 +45,7 @@ class GaussianFeedForward(nn.Module):
 def reinforce(model, env, optimizer, seed, isDouble=False):
     ''' Perform REINFORCE algorithm '''
     model.train()
-    rewards_list = []
+    rls = []
     for episode in tqdm(range(NUM_EPISODES)):
 
         observation, info = env.reset()
@@ -54,7 +53,7 @@ def reinforce(model, env, optimizer, seed, isDouble=False):
 
         log_probs = torch.empty((0,), dtype=torch.float32)
         rewards = torch.empty((0,), dtype=torch.float32)
-
+        r = 0
         while not done:
 
             observation = torch.tensor(observation, dtype=torch.float32).to(device)
@@ -63,36 +62,36 @@ def reinforce(model, env, optimizer, seed, isDouble=False):
             mu, logvar = out[0], out[1]
 
             action, log_prob = sample_action(mu, logvar)
-            action, log_prob = action.cpu(), log_prob.cpu()
-
+            
             action = torch.clamp(action, -1, 1) if isDouble else torch.clamp(action, -3, 3)
 
             next_observation, reward, terminated, truncated, info = env.step([action])
-            
+            r += reward
+
             done = terminated or truncated
 
             log_probs = torch.cat((log_prob.unsqueeze(0), log_probs), dim=0)
             rewards = torch.cat((torch.tensor(reward, dtype=torch.float32).unsqueeze(0), rewards), dim=0)
             observation = next_observation
-        rewards_list.append(rewards.sum().cpu().detach().numpy())
-        if rewards.sum() > 700:
-            torch.save(model.state_dict(), f"./dreinforce_HOOO{reward.sum()}.pth")
+
         if episode % 100 == 0: 
             print(f"Episode: {episode}, Reward: {rewards.sum()}")
             if isDouble:
                 torch.save(model.state_dict(), f"./models/dreinforce_{episode}-{seed}.pth")
             else:
                 torch.save(model.state_dict(), f"./models/reinforce_{episode}-{seed}.pth")
-
+        rls.append(r)
         update(rewards, log_probs, optimizer)
-    return model, rewards_list
+    return model, rls
 
 def sample_action(mu, logvar):
     std = torch.exp(logvar / 2)
+    if torch.isnan(std).any():
+        std = torch.zeros_like(std)
     distrib = Normal(mu, std)
     action = distrib.sample()
     log_prob = distrib.log_prob(action)
-    return action, log_prob
+    return action.cpu(), log_prob.cpu()
 
 def update(rewards, log_probs, optimizer):
     g = 0
@@ -115,20 +114,30 @@ def update(rewards, log_probs, optimizer):
     loss.backward()
     optimizer.step()
 
-
 def inverted_main():
     env = gym.make("InvertedPendulum-v4", render_mode=None)
     num_features = env.observation_space.shape[0]
-    model = GaussianFeedForward(input_size=num_features, output_size=2).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    model.load_state_dict(torch.load("./models/reinforce_4700-42.pth"))
-    seeds = [42, 43, 44, 45, 46]
+    seeds = [42, 43, 44]
+    rls = []
     for s in seeds:
+        model = GaussianFeedForward(input_size=num_features, output_size=2).to(device)
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+    # model.load_state_dict(torch.load("./models/reinforce_4700-42.pth"))
         random.seed(s)
         torch.manual_seed(s)
         np.random.seed(s)
-        model = reinforce(model, env, optimizer, s)
+        model, rl = reinforce(model, env, optimizer, s)
+        rls.append(rl)
     torch.save(model.state_dict(), "./models/reinforce.pth")
+    
+    rls = np.array(rls)
+    rl_m = np.mean(rls, axis=0)
+    rl_std = np.std(rls, axis=0)
+    plt.figure()
+    plt.plot( np.arange(len(rl_std)), rl_m, 'r--')
+    plt.fill_between(range(len(rl_m)), rl_m - rl_std, rl_m + rl_std, alpha=.5)
+    plt.ylim(0, 1000)
+    plt.savefig("./THEGRAPH.png")
     
     model.load_state_dict(torch.load("./models/reinforce.pth"))
     env = gym.make("InvertedPendulum-v4", render_mode='human')
@@ -144,8 +153,6 @@ def inverted_main():
         mu, logvar = out[0], out[1]
 
         action, _ = sample_action(mu, logvar)
-        action, log_prob = action.cpu(), log_prob.cpu()
-
         next_observation, reward, terminated, truncated, info = env.step([action])
         
         rewards += reward
@@ -159,20 +166,27 @@ def double_inverted_main():
     env = gym.make("InvertedDoublePendulum-v4", render_mode=None)
 
     num_features = env.observation_space.shape[0]
-    model = GaussianFeedForward(input_size=num_features, output_size=2, do_dropout=False, hidden_sizes=[48, 32]).to(device)
-    model.load_state_dict(torch.load("./models_final/dreinforce.pth"))
-    optimizer = optim.Adam(model.parameters(), lr=lr)
-    seeds = [ 43, 44, 45, 46]
+    seeds = [42, 43, 44, 45, 46]
+    rls = []
     for s in seeds:
+        model = GaussianFeedForward(input_size=num_features, output_size=2, do_dropout=False, hidden_sizes=[400, 300]).to(device)
+
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+
         random.seed(s)
         torch.manual_seed(s)
         np.random.seed(s)
-        model.load_state_dict(torch.load("./models_final/dreinforce.pth"))
         model, rl = reinforce(model, env, optimizer, s, True)
+        rls.append(rl)
         
-        plt.plot(np.arange(len(rl)), rl)
-        plt.show()
-
+    rls = np.array(rls)
+    rl_m = np.mean(rls, axis=0)
+    rl_std = np.std(rls, axis=0)
+    plt.figure()
+    plt.plot(np.arange(len(rl_std)), rl_m,  'r--')
+    plt.fill_between(range(len(rl_m)), rl_m - rl_std, rl_m + rl_std, alpha=.5)
+    plt.ylim(0, 10000)
+    plt.savefig("./THEGRAPH2.png")
     torch.save(model.state_dict(), "./models/dreinforce.pth")
 
 if __name__ == "__main__":
