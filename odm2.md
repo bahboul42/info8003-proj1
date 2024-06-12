@@ -4,7 +4,7 @@
 **Stopping Conditions:**
 1. **Maximum Number of Iterations:** 
    - The process can be predefined to stop after a certain number of iterations. This number can be determined by ensuring that the error bound on the sub-optimality of the policy falls below a pre-defined tolerance level.
-   - The error bound equation:\( \|J_{\mu^*_N} - J_{\mu^*}\|_\infty \leq \frac{2 \gamma^N B_r}{(1-\gamma)^2} \)
+   - The error bound equation:(\ \|J_{\mu^*_N} - J_{\mu^*}\|_\infty \leq \frac{2 \gamma^N B_r}{(1-\gamma)^2} \)
    - Here, $ B_r $ is a known constant, and $ \gamma $ is the discount factor.
 
 2. **Distance Between Successive Approximations:**
